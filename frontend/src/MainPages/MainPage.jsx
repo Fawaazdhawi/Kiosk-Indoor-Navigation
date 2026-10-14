@@ -1293,7 +1293,7 @@ export default function App() {
 
                   {/* pencarian & dropdown ruangan */}
                   <div className="search-wrapper destination-input" style={{ position: "relative" }} ref={searchWrapperRef}>
-                    <form onSubmit={(e) => { e.preventDefault(); if (searchInputRef.current) searchInputRef.current.blur(); executeSearch(location, search); }} style={{ width: "100%", margin: 0 }}>
+                    <form onSubmit={(e) => { e.preventDefault(); setIsSearchDropdownOpen(false); if (searchInputRef.current) searchInputRef.current.blur(); executeSearch(location, search); }} style={{ width: "100%", margin: 0 }}>
                       <input
                         ref={searchInputRef}
                         inputMode={isListening ? "none" : "search"}
@@ -1382,6 +1382,7 @@ export default function App() {
                 is3DMode={is3DMode}
                 hasActiveRoute={navigationSteps.length > 0}
                 onAction={handleQuickTipAction}
+                hidden={isSearchDropdownOpen && filteredDropdownRooms.length > 0}
               />
 
               {/* aksi cepat — hanya tampil saat belum ada tujuan dipilih */}

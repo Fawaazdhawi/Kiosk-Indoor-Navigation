@@ -73,6 +73,7 @@ export default function QuickTipsBar({
   onAction = null,
   is3DMode = false,
   hasActiveRoute = false,
+  hidden = false,
 }) {
   const [currentIndex, setCurrentIndex] = useState(0);
   const [isPaused, setIsPaused] = useState(false);
@@ -153,7 +154,7 @@ export default function QuickTipsBar({
 
   return (
     <div
-      className="quick-tips-bar"
+      className={`quick-tips-bar${hidden ? ' quick-tips-hidden' : ''}`}
       onMouseEnter={() => setIsPaused(true)}
       onMouseLeave={() => setIsPaused(false)}
       title={language === 'en' ? 'Kiosk Usage Tip (Hover to pause)' : 'Tips Penggunaan Kiosk (Arahkan mouse untuk jeda)'}

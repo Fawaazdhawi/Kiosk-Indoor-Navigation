@@ -954,9 +954,29 @@ body.dark-mode .view-mode-toggle-wrapper {
   box-shadow: 0 4px 16px rgba(26, 115, 232, 0.08);
   backdrop-filter: blur(12px);
   -webkit-backdrop-filter: blur(12px);
-  transition: all 0.25s ease;
+  transition: max-height 0.3s cubic-bezier(0.4, 0, 0.2, 1),
+              opacity 0.25s ease,
+              margin 0.25s ease,
+              padding 0.25s ease,
+              box-shadow 0.25s ease;
   position: relative;
   overflow: hidden;
+  max-height: 250px;
+  opacity: 1;
+}
+
+.quick-tips-bar.quick-tips-hidden {
+  max-height: 0 !important;
+  opacity: 0 !important;
+  pointer-events: none !important;
+  visibility: hidden !important;
+  margin-top: 0 !important;
+  margin-bottom: 0 !important;
+  padding-top: 0 !important;
+  padding-bottom: 0 !important;
+  border-width: 0 !important;
+  border-color: transparent !important;
+  box-shadow: none !important;
 }
 
 body.dark-mode .quick-tips-bar {
