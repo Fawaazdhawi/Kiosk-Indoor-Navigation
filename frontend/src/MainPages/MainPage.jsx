@@ -12,6 +12,7 @@ import { SAMPLE_ROOMS, SAMPLE_KIOSKS } from "../utils/mockData";
 import { AlertDialog } from "../components/Dialogs";
 import { QRCodeCanvas } from "qrcode.react";
 import LanguageSelector from "../components/LanguageSelector";
+import QuickTipsBar from "../components/QuickTipsBar";
 import "./Main.css";
 
 
@@ -930,6 +931,31 @@ export default function App() {
     return `${window.location.protocol}//${host}${port}/?start=${encodeURIComponent(location)}&end=${encodeURIComponent(search)}&mobile=true&expires=${expires}`;
   }, [isQrModalOpen, serverIp, location, search]);
 
+  const handleQuickTipAction = (actionType) => {
+    switch (actionType) {
+      case 'voice':
+        startListening();
+        break;
+      case 'qr':
+        setIsQrModalOpen(true);
+        break;
+      case 'toggle3d':
+        const next3D = !is3DMode;
+        setIs3DMode(next3D);
+        localStorage.setItem("map_view_mode", next3D ? "3d" : "2d");
+        break;
+      case 'bridge':
+        setBuilding('Galaxy Mall 2');
+        break;
+      case 'toilet':
+        setSearch('Toilet');
+        executeSearch(location, 'Toilet');
+        break;
+      default:
+        break;
+    }
+  };
+
   if (isSessionExpired) {
     return (
       <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', height: '100vh', background: 'var(--bg)', color: 'var(--text-main)', textAlign: 'center', padding: '20px' }}>
@@ -1346,6 +1372,14 @@ export default function App() {
                   </div>
                 </div>
               </div>
+
+              {/* Quick Tips Bar (Opsi 2: Teks Petunjuk Dinamis Interaktif) */}
+              <QuickTipsBar
+                language={language}
+                isDarkMode={isDarkMode}
+                is3DMode={is3DMode}
+                onAction={handleQuickTipAction}
+              />
 
               {/* aksi cepat — hanya tampil saat belum ada tujuan dipilih */}
               <div className={`quick-actions-section${(search.trim() || isSearchDropdownOpen) ? ' quick-actions-hidden' : ''}`}>

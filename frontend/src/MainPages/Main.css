@@ -943,6 +943,230 @@ body.dark-mode .view-mode-toggle-wrapper {
   outline: none;
 }
 
+/* ── quick tips bar ───────────────────────────── */
+.quick-tips-bar {
+  background: linear-gradient(135deg, rgba(232, 240, 254, 0.85) 0%, rgba(255, 255, 255, 0.95) 100%);
+  border: 1px solid rgba(26, 115, 232, 0.22);
+  border-radius: 14px;
+  padding: 10px 12px;
+  margin-top: 4px;
+  margin-bottom: 8px;
+  box-shadow: 0 4px 16px rgba(26, 115, 232, 0.08);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  transition: all 0.25s ease;
+  position: relative;
+  overflow: hidden;
+}
+
+body.dark-mode .quick-tips-bar {
+  background: linear-gradient(135deg, rgba(23, 42, 70, 0.85) 0%, rgba(15, 23, 42, 0.9) 100%);
+  border: 1px solid rgba(66, 133, 244, 0.25);
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.35);
+}
+
+.quick-tips-bar:hover {
+  border-color: var(--blue-primary);
+  box-shadow: 0 6px 20px rgba(26, 115, 232, 0.16);
+}
+
+body.dark-mode .quick-tips-bar:hover {
+  border-color: rgba(66, 133, 244, 0.45);
+  box-shadow: 0 6px 20px rgba(0, 0, 0, 0.5);
+}
+
+.quick-tips-inner {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+}
+
+.quick-tips-icon-badge {
+  width: 32px;
+  height: 32px;
+  border-radius: 10px;
+  background: rgba(26, 115, 232, 0.1);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  transition: transform 0.2s ease;
+}
+
+body.dark-mode .quick-tips-icon-badge {
+  background: rgba(66, 133, 244, 0.18);
+}
+
+.quick-tips-icon {
+  font-size: 16px;
+  line-height: 1;
+}
+
+.quick-tips-content {
+  flex: 1;
+  min-width: 0;
+}
+
+.quick-tips-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 3px;
+}
+
+.quick-tips-tag {
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  color: var(--blue-primary);
+  display: flex;
+  align-items: center;
+  gap: 5px;
+}
+
+.quick-tips-pulse-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: #22c55e;
+  box-shadow: 0 0 0 0 rgba(34, 197, 94, 0.7);
+  animation: tipPulse 2s infinite;
+}
+
+@keyframes tipPulse {
+  0% {
+    transform: scale(0.95);
+    box-shadow: 0 0 0 0 rgba(34, 197, 94, 0.7);
+  }
+  70% {
+    transform: scale(1);
+    box-shadow: 0 0 0 5px rgba(34, 197, 94, 0);
+  }
+  100% {
+    transform: scale(0.95);
+    box-shadow: 0 0 0 0 rgba(34, 197, 94, 0);
+  }
+}
+
+.quick-tips-counter {
+  font-size: 9.5px;
+  font-weight: 600;
+  color: var(--text-muted);
+  opacity: 0.7;
+}
+
+.quick-tips-text {
+  font-size: 11.5px;
+  line-height: 1.4;
+  color: var(--text-main);
+  margin: 0;
+  transition: opacity 0.2s ease, transform 0.2s ease;
+}
+
+.quick-tips-text.fade-in {
+  opacity: 1;
+  transform: translateY(0);
+}
+
+.quick-tips-text.fade-out {
+  opacity: 0;
+  transform: translateY(-4px);
+}
+
+.quick-tips-footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-top: 8px;
+  padding-top: 6px;
+  border-top: 1px dashed rgba(26, 115, 232, 0.16);
+}
+
+body.dark-mode .quick-tips-footer {
+  border-top-color: rgba(66, 133, 244, 0.16);
+}
+
+.quick-tips-action-btn {
+  background: var(--blue-primary);
+  color: #ffffff;
+  border: none;
+  border-radius: 8px;
+  padding: 4px 9px;
+  font-size: 10.5px;
+  font-weight: 700;
+  font-family: 'DM Sans', sans-serif;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  transition: all 0.2s ease;
+  box-shadow: 0 2px 6px rgba(26, 115, 232, 0.25);
+}
+
+.quick-tips-action-btn:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 4px 10px rgba(26, 115, 232, 0.35);
+  filter: brightness(1.08);
+}
+
+.quick-tips-action-btn:active {
+  transform: translateY(0);
+}
+
+.quick-tips-nav {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.quick-tips-arrow {
+  background: transparent;
+  border: none;
+  color: var(--text-muted);
+  font-size: 14px;
+  line-height: 1;
+  cursor: pointer;
+  padding: 2px 4px;
+  border-radius: 4px;
+  transition: color 0.15s ease, background 0.15s ease;
+  font-weight: bold;
+}
+
+.quick-tips-arrow:hover {
+  color: var(--text-main);
+  background: rgba(0, 0, 0, 0.05);
+}
+
+body.dark-mode .quick-tips-arrow:hover {
+  background: rgba(255, 255, 255, 0.1);
+}
+
+.quick-tips-dots {
+  display: flex;
+  align-items: center;
+  gap: 3px;
+}
+
+.quick-tips-dot {
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+  background: var(--border);
+  cursor: pointer;
+  transition: all 0.25s ease;
+}
+
+body.dark-mode .quick-tips-dot {
+  background: rgba(255, 255, 255, 0.2);
+}
+
+.quick-tips-dot.active {
+  width: 14px;
+  border-radius: 3px;
+  background: var(--blue-primary);
+}
+
 /* aksi cepat */
 .quick-actions-section {
   overflow: hidden;

@@ -2,30 +2,30 @@
 
 :root {
   --blue-primary: #1A73E8;
-  --blue-dark:    #1557B0;
-  --blue-light:   #E8F0FE;
-  --border:       #D2E3FC;
-  --text-main:    #172B4D;
-  --text-muted:   #5E6C84;
-  --bg:           #F4F5F7;
-  --white:        #FFFFFF;
-  --shadow-sm:    0 2px 8px rgba(26, 115, 232, 0.08);
-  --shadow-md:    0 12px 28px rgba(26, 115, 232, 0.15);
-  --radius:       12px;
-  --radius-lg:    16px;
+  --blue-dark: #1557B0;
+  --blue-light: #E8F0FE;
+  --border: #D2E3FC;
+  --text-main: #172B4D;
+  --text-muted: #5E6C84;
+  --bg: #F4F5F7;
+  --white: #FFFFFF;
+  --shadow-sm: 0 2px 8px rgba(26, 115, 232, 0.08);
+  --shadow-md: 0 12px 28px rgba(26, 115, 232, 0.15);
+  --radius: 12px;
+  --radius-lg: 16px;
 }
 
 body.dark-mode {
-  --blue-primary: #4285F4; 
-  --blue-dark:    #1A73E8;
-  --blue-light:   #172A46; 
-  --border:       #23395B;
-  --text-main:    #E8F0FE;
-  --text-muted:   #8AB4F8;
-  --bg:           #0B1320;
-  --white:        #101E33; 
-  --shadow-sm:    0 2px 8px rgba(0, 0, 0, 0.5);
-  --shadow-md:    0 12px 28px rgba(0, 0, 0, 0.8);
+  --blue-primary: #4285F4;
+  --blue-dark: #1A73E8;
+  --blue-light: #172A46;
+  --border: #23395B;
+  --text-main: #E8F0FE;
+  --text-muted: #8AB4F8;
+  --bg: #0B1320;
+  --white: #101E33;
+  --shadow-sm: 0 2px 8px rgba(0, 0, 0, 0.5);
+  --shadow-md: 0 12px 28px rgba(0, 0, 0, 0.8);
 }
 
 *,
@@ -36,7 +36,8 @@ body.dark-mode {
   padding: 0;
 }
 
-html, body {
+html,
+body {
   height: 100%;
   overflow: hidden;
 }
@@ -132,8 +133,10 @@ input:checked+.slider:before {
   overflow-y: auto;
   pointer-events: auto;
   touch-action: pan-y;
-  -ms-overflow-style: none;  /* ie and Edge */
-  scrollbar-width: none;  /* Firefox */
+  -ms-overflow-style: none;
+  /* ie and Edge */
+  scrollbar-width: none;
+  /* Firefox */
 }
 
 /* sembunyikan scrollbar */
@@ -200,24 +203,42 @@ body.dark-mode .scrubber-btn {
     transform: scale(1.08) !important;
   }
 }
+
 /* --- Global UI Animations --- */
 @keyframes popIn {
-  from { opacity: 0; transform: scale(0.97); }
-  to { opacity: 1; transform: scale(1); }
+  from {
+    opacity: 0;
+    transform: scale(0.97);
+  }
+
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
 }
 
 @keyframes slideInUp {
-  from { opacity: 0; transform: translateY(10px); }
-  to { opacity: 1; transform: translateY(0); }
+  from {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
 }
 
 /* Modals and Overlays */
-.modal-content, .login-modal, .room-action-modal, .alert-dialog-content {
+.modal-content,
+.login-modal,
+.room-action-modal,
+.alert-dialog-content {
   animation: popIn 0.2s ease-out forwards;
 }
 
 /* All Buttons */
-button, 
+button,
 .btn,
 .header-login-btn,
 .header-edit-btn,
@@ -251,7 +272,11 @@ button:active:not(:disabled),
 }
 
 /* Cards and panels */
-.admin-card, .edit-card, .sidebar, .bottom-nav, .log-item {
+.admin-card,
+.edit-card,
+.sidebar,
+.bottom-nav,
+.log-item {
   animation: slideInUp 0.3s ease-out forwards;
 }
 
@@ -269,8 +294,8 @@ button:active:not(:disabled),
   transition: transform 0.3s cubic-bezier(0.25, 0.8, 0.25, 1) !important;
 }
 
-select:focus + .dropdown-arrow,
-select:active + .dropdown-arrow {
+select:focus+.dropdown-arrow,
+select:active+.dropdown-arrow {
   transform: translateY(-50%) rotate(180deg) !important;
 }
 
@@ -286,31 +311,48 @@ body {
 }
 
 /* Make all structural background and text color changes smooth (useful for dark mode transitions) */
-body, .main-layout, .sidebar, .map-container, .admin-card, .edit-card, .modal-content {
+body,
+.main-layout,
+.sidebar,
+.map-container,
+.admin-card,
+.edit-card,
+.modal-content {
   transition: background-color 0.3s ease, color 0.3s ease, border-color 0.3s ease, box-shadow 0.3s ease !important;
 }
 
 /* Inputs and Selects Smoothness */
-input, select, textarea {
+input,
+select,
+textarea {
   transition: all 0.2s cubic-bezier(0.25, 0.8, 0.25, 1) !important;
 }
 
-input:focus, select:focus, textarea:focus {
+input:focus,
+select:focus,
+textarea:focus {
   transform: translateY(-1px);
   box-shadow: 0 4px 12px rgba(26, 115, 232, 0.15) !important;
 }
 
 /* Ensure smooth image scaling (if any flags or logos are scaling) */
-img, svg {
+img,
+svg {
   transition: transform 0.3s ease, opacity 0.3s ease;
 }
 
 @keyframes fadeInBlur {
-  from { opacity: 0; backdrop-filter: blur(0px); }
-  to { opacity: 1; backdrop-filter: blur(4px); }
+  from {
+    opacity: 0;
+    backdrop-filter: blur(0px);
+  }
+
+  to {
+    opacity: 1;
+    backdrop-filter: blur(4px);
+  }
 }
 
 .modal-overlay {
   animation: fadeInBlur 0.2s ease-out forwards;
 }
-
