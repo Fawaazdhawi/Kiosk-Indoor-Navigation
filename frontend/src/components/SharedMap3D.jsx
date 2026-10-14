@@ -934,9 +934,9 @@ export default function SharedMap3D({
       const isStairs = item.name?.toLowerCase().includes("tangga") || item.name?.toLowerCase().includes("stairs");
       const isKiosk = item.isKiosk;
 
-      let color = isDarkMode ? 0x1e293b : 0xf8fafc;
-      let emissive = 0x000000;
-      let typeBadgeColor = isDarkMode ? "#64748b" : "#94a3b8";
+      let color = isDarkMode ? 0x3b506f : 0xcbd5e1;
+      let emissive = isDarkMode ? 0x162234 : 0x000000;
+      let typeBadgeColor = isDarkMode ? "#94a3b8" : "#64748b";
 
       if (isKiosk) {
         color = 0x3b82f6;
@@ -966,9 +966,9 @@ export default function SharedMap3D({
         roughness: isKiosk || isLift || isStairs || isPintu ? 0.3 : 0.45,
         metalness: 0.15,
         transparent: true,
-        opacity: isKiosk || isLift || isStairs || isPintu ? 0.95 : 0.88,
+        opacity: isKiosk || isLift || isStairs || isPintu ? 0.95 : 0.94,
         emissive: new THREE.Color(emissive),
-        emissiveIntensity: isDarkMode ? 0.25 : 0.1,
+        emissiveIntensity: isDarkMode ? 0.45 : 0.1,
       });
 
       const mesh = new THREE.Mesh(geo, mat);
@@ -982,7 +982,7 @@ export default function SharedMap3D({
       // Edges highlight
       const edges = new THREE.EdgesGeometry(geo);
       const edgeMat = new THREE.LineBasicMaterial({
-        color: isDarkMode ? 0x475569 : 0xcbd5e1,
+        color: isDarkMode ? 0x94a3b8 : 0x64748b,
       });
       const edgeLine = new THREE.LineSegments(edges, edgeMat);
       mesh.add(edgeLine);

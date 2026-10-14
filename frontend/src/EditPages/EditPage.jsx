@@ -86,7 +86,7 @@ const ElementShape = React.memo(({ shapeProps, isSelected, onSelect, onChange, s
     if (isNew) return { fill: isDarkMode ? "#064e3b" : "#d4edda", stroke: isDarkMode ? "#065f46" : "#c3e6cb", text: isDarkMode ? "#d1fae5" : "#155724" };
     if (isChanged) return { fill: isDarkMode ? "#3f3f00" : "#fff3cd", stroke: isDarkMode ? "#666600" : "#ffeeba", text: isDarkMode ? "#fff" : "#856404" };
 
-    return { fill: isDarkMode ? "#1e293b" : "#f8f9fa", stroke: isDarkMode ? "#334155" : "#ced4da", text: isDarkMode ? "#f8fafc" : "#495057" };
+    return { fill: isDarkMode ? "#334155" : "#cbd5e1", stroke: isDarkMode ? "#64748b" : "#94a3b8", text: isDarkMode ? "#f8fafc" : "#0f172a" };
   }, [shapeProps, originalElements, isDarkMode]);
 
   const visualColors = getVisualColors();

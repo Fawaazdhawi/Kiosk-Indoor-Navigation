@@ -1071,9 +1071,9 @@ export default function SharedMap({
                   const isLift = room.name?.toLowerCase().includes('lift');
                   const isStairs = room.name?.toLowerCase().includes('tangga') || room.name?.toLowerCase().includes('stairs');
 
-                  let fillCol = isDarkMode ? "#1e293b" : "#f8f9fa";
-                  let strokeCol = isDarkMode ? "#334155" : "#dae0e5";
-                  let textFill = isDarkMode ? "#f8fafc" : "#495057";
+                  let fillCol = isDarkMode ? "#334155" : "#cbd5e1";
+                  let strokeCol = isDarkMode ? "#64748b" : "#94a3b8";
+                  let textFill = isDarkMode ? "#f8fafc" : "#0f172a";
 
                   if (isPintu) {
                     fillCol = "#4CAF50"; strokeCol = "#2E7D32"; textFill = "#ffffff";
