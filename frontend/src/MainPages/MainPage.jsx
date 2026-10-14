@@ -1070,28 +1070,65 @@ export default function App() {
 
       <div className={`main-layout ${isMobileMode ? 'mobile-mode' : ''}`}>
         {isMobileMode && (
-          <div style={{ position: "absolute", top: "15px", right: "15px", zIndex: 1000, display: "flex", gap: "8px" }}>
-            <label className="theme-switch" title={isDarkMode ? "Light Mode" : "Dark Mode"}>
-              <input
-                type="checkbox"
-                checked={isDarkMode}
-                onChange={() => {
-                  const newMode = !isDarkMode;
-                  setIsDarkMode(newMode);
-                  localStorage.setItem('theme', newMode ? 'dark' : 'light');
-                }}
+          <header className="mobile-top-header">
+            <div className="mobile-header-left">
+              <div className="mobile-building-badge">
+                <span className="mobile-badge-icon">🏢</span>
+                <span className="mobile-building-name">{building || "Mall"}</span>
+                <span className="mobile-badge-dot">•</span>
+                <span className="mobile-floor-name">{floor}</span>
+              </div>
+            </div>
+            <div className="mobile-header-right">
+              {/* Toggle 2D / 3D di HP */}
+              <div className="mobile-view-toggle">
+                <button
+                  type="button"
+                  className={`mobile-view-btn ${!is3DMode ? "active" : ""}`}
+                  onClick={() => {
+                    setIs3DMode(false);
+                    localStorage.setItem("map_view_mode", "2d");
+                  }}
+                >
+                  2D
+                </button>
+                <button
+                  type="button"
+                  className={`mobile-view-btn ${is3DMode ? "active" : ""}`}
+                  onClick={() => {
+                    setIs3DMode(true);
+                    localStorage.setItem("map_view_mode", "3d");
+                  }}
+                >
+                  3D
+                </button>
+              </div>
+
+              {/* Theme Switch */}
+              <label className="theme-switch mobile-theme-switch" title={isDarkMode ? "Light Mode" : "Dark Mode"}>
+                <input
+                  type="checkbox"
+                  checked={isDarkMode}
+                  onChange={() => {
+                    const newMode = !isDarkMode;
+                    setIsDarkMode(newMode);
+                    localStorage.setItem('theme', newMode ? 'dark' : 'light');
+                  }}
+                />
+                <span className="slider">
+                  <span className="slider-icon">🌙</span>
+                  <span className="slider-icon">☀️</span>
+                </span>
+              </label>
+
+              {/* Language Selector */}
+              <LanguageSelector
+                language={language}
+                onChange={handleLanguageChange}
+                isMobile={true}
               />
-              <span className="slider">
-                <span className="slider-icon">🌙</span>
-                <span className="slider-icon">☀️</span>
-              </span>
-            </label>
-            <LanguageSelector
-              language={language}
-              onChange={handleLanguageChange}
-              isMobile={true}
-            />
-          </div>
+            </div>
+          </header>
         )}
         <aside className={`left-panel ${isMobileMode ? 'mobile-panel' : ''}`}>
 
@@ -1356,7 +1393,42 @@ export default function App() {
               {navigationSteps.length > 0 ? (
                 <>
                   <div className="nav-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                    <span>{getText('route_found')} {getText('towards')} {targetRoomName}</span>
+                    <span style={{ fontWeight: 700, fontSize: isMobileMode ? '0.88rem' : '1rem', color: 'var(--text-main)' }}>
+                      {getText('route_found')} {getText('towards')} {targetRoomName}
+                    </span>
+                    {isMobileMode && (
+                      <button
+                        onClick={() => {
+                          if ('speechSynthesis' in window) window.speechSynthesis.cancel();
+                          if (countdownIntervalRef.current) clearInterval(countdownIntervalRef.current);
+                          if (resetTimeoutRef.current) clearTimeout(resetTimeoutRef.current);
+                          setPathData([]);
+                          setNavigationSteps([]);
+                          setActiveStepIndex(-1);
+                          setTargetRoomName("");
+                          setOutputText("");
+                          setIsNavFinished(false);
+                          setSearch("");
+                        }}
+                        style={{
+                          background: 'rgba(0,0,0,0.06)',
+                          border: 'none',
+                          borderRadius: '50%',
+                          width: '28px',
+                          height: '28px',
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                          fontSize: '14px',
+                          cursor: 'pointer',
+                          color: 'var(--text-muted)',
+                          lineHeight: 1,
+                        }}
+                        title={language === 'en' ? 'Stop Navigation' : 'Tutup Navigasi'}
+                      >
+                        ✕
+                      </button>
+                    )}
                   </div>
                   {navigationSteps.map((step, idx) => (
                     <div
@@ -1370,7 +1442,7 @@ export default function App() {
                   ))}
 
                   {isMobileMode && navigationSteps.length > 0 && (
-                    <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: '15px' }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: '12px', gap: '10px' }}>
                       <button
                         onClick={() => {
                           const newIdx = Math.max(0, activeStepIndex - 1);
@@ -1383,11 +1455,21 @@ export default function App() {
                           }
                         }}
                         disabled={activeStepIndex === 0}
-                        style={{ padding: '8px 15px', borderRadius: '8px', border: 'none', background: activeStepIndex === 0 ? (isDarkMode ? '#334155' : '#ccc') : 'var(--blue-primary)', color: 'white', fontWeight: 'bold' }}
+                        style={{
+                          padding: '10px 18px',
+                          borderRadius: '10px',
+                          border: 'none',
+                          background: activeStepIndex === 0 ? (isDarkMode ? 'rgba(51, 65, 85, 0.5)' : '#e2e8f0') : (isDarkMode ? 'rgba(30, 41, 59, 0.9)' : '#e0e7ff'),
+                          color: activeStepIndex === 0 ? (isDarkMode ? '#64748b' : '#94a3b8') : 'var(--blue-primary)',
+                          fontWeight: '700',
+                          fontSize: '0.85rem',
+                          cursor: activeStepIndex === 0 ? 'not-allowed' : 'pointer',
+                          minWidth: '78px',
+                        }}
                       >
                         {language === 'en' ? 'Prev' : 'Mundur'}
                       </button>
-                      <span style={{ alignSelf: 'center', fontWeight: 'bold', color: 'var(--blue-primary)' }}>
+                      <span style={{ fontWeight: '700', color: 'var(--blue-primary)', fontSize: '0.9rem' }}>
                         {activeStepIndex + 1} / {navigationSteps.length}
                       </span>
                       <button
@@ -1402,7 +1484,18 @@ export default function App() {
                           }
                         }}
                         disabled={activeStepIndex === navigationSteps.length - 1}
-                        style={{ padding: '8px 15px', borderRadius: '8px', border: 'none', background: activeStepIndex === navigationSteps.length - 1 ? (isDarkMode ? '#334155' : '#ccc') : 'var(--blue-primary)', color: 'white', fontWeight: 'bold' }}
+                        style={{
+                          padding: '10px 18px',
+                          borderRadius: '10px',
+                          border: 'none',
+                          background: activeStepIndex === navigationSteps.length - 1 ? (isDarkMode ? 'rgba(51, 65, 85, 0.5)' : '#e2e8f0') : 'var(--blue-primary)',
+                          color: activeStepIndex === navigationSteps.length - 1 ? (isDarkMode ? '#64748b' : '#94a3b8') : 'white',
+                          fontWeight: '700',
+                          fontSize: '0.85rem',
+                          cursor: activeStepIndex === navigationSteps.length - 1 ? 'not-allowed' : 'pointer',
+                          minWidth: '78px',
+                          boxShadow: activeStepIndex === navigationSteps.length - 1 ? 'none' : '0 3px 10px rgba(26, 115, 200, 0.35)',
+                        }}
                       >
                         {language === 'en' ? 'Next' : 'Maju'}
                       </button>
@@ -1544,29 +1637,31 @@ export default function App() {
               Kembali ke Lantai Utama
             </button>
           )}
-          {/* Toggle View Mode (2D / 3D) */}
-          <div className="view-mode-toggle-wrapper">
-            <button
-              type="button"
-              className={`view-mode-btn ${!is3DMode ? "active" : ""}`}
-              onClick={() => {
-                setIs3DMode(false);
-                localStorage.setItem("map_view_mode", "2d");
-              }}
-            >
-              2D
-            </button>
-            <button
-              type="button"
-              className={`view-mode-btn ${is3DMode ? "active" : ""}`}
-              onClick={() => {
-                setIs3DMode(true);
-                localStorage.setItem("map_view_mode", "3d");
-              }}
-            >
-              3D
-            </button>
-          </div>
+          {/* Toggle View Mode (2D / 3D) - Desktop only (di HP sudah masuk di mobile-top-header) */}
+          {!isMobileMode && (
+            <div className="view-mode-toggle-wrapper">
+              <button
+                type="button"
+                className={`view-mode-btn ${!is3DMode ? "active" : ""}`}
+                onClick={() => {
+                  setIs3DMode(false);
+                  localStorage.setItem("map_view_mode", "2d");
+                }}
+              >
+                2D
+              </button>
+              <button
+                type="button"
+                className={`view-mode-btn ${is3DMode ? "active" : ""}`}
+                onClick={() => {
+                  setIs3DMode(true);
+                  localStorage.setItem("map_view_mode", "3d");
+                }}
+              >
+                3D
+              </button>
+            </div>
+          )}
 
           {is3DMode ? (
             <div className="map-content-3d" style={{ width: "100%", height: "100%", position: "relative" }}>
@@ -1584,6 +1679,8 @@ export default function App() {
                 language={language}
                 selectedKiosk={location}
                 isDarkMode={isDarkMode}
+                isMobile={isMobileMode}
+                hasActiveNavigation={navigationSteps.length > 0}
                 onRoomClick={(room, e) => {
                   if (isMobileMode) return;
                   const hasSubmap = floors.includes(`submap_${room.id}`);

@@ -200,6 +200,8 @@ export default function SharedMap3D({
   onRoomClick,
   language = "id",
   isDarkMode = false,
+  isMobile = false,
+  hasActiveNavigation = false,
 }) {
   const containerRef = useRef(null);
   const [rooms, setRooms] = useState([]);
@@ -442,20 +444,35 @@ export default function SharedMap3D({
     const w = container ? (container.clientWidth || window.innerWidth) : window.innerWidth;
     const h = container ? (container.clientHeight || window.innerHeight) : window.innerHeight;
     const aspect = Math.max(0.2, w / h);
-    const fovVRad = THREE.MathUtils.degToRad(40);
+    const isMobileDevice = isMobile || w < 768 || aspect < 0.85;
+
+    const fovVDeg = isMobileDevice ? 48 : 40;
+    const fovVRad = THREE.MathUtils.degToRad(fovVDeg);
     const fovHRad = 2 * Math.atan(Math.tan(fovVRad / 2) * aspect);
 
     // Menghitung jarak kamera yang presisi agar denah gedung pas di layar
     const distX = (bSpanX / 2) / Math.tan(fovHRad / 2);
-    const pitchAngleRad = THREE.MathUtils.degToRad(40);
+    const pitchAngleRad = THREE.MathUtils.degToRad(isMobileDevice ? 46 : 40);
     const distY = ((bSpanZ * Math.sin(pitchAngleRad) + 80) / 2) / Math.tan(fovVRad / 2);
-    const idealDist = Math.max(distX, distY) * 1.25;
-    const clampedDist = Math.max(380, Math.min(idealDist, 3500));
+
+    let idealDist;
+    if (isMobileDevice) {
+      // Pada layar HP portrait (aspect < 0.85), distX melonjak tinggi jika dipaksakan aspect sempit.
+      // Kita fokuskan pada dimensi vertikal gedung (distY) dengan faktor lebar proporsional
+      // agar denah gedung langsung tampak jelas dan proporsional tanpa harus zoom manual.
+      const targetDist = Math.max(distY * 1.05, distX * 0.45);
+      idealDist = Math.max(280, Math.min(targetDist, 650));
+    } else {
+      idealDist = Math.max(distX, distY) * 1.25;
+    }
+    const clampedDist = isMobileDevice
+      ? Math.max(280, Math.min(idealDist, 720))
+      : Math.max(380, Math.min(idealDist, 3500));
 
     if (angle === "top") {
       return {
         x: 0,
-        y: Math.max(distX, distY) * 1.15,
+        y: Math.max(distX * (isMobileDevice ? 0.5 : 1), distY) * 1.15,
         z: 1,
         dist: clampedDist,
       };
@@ -467,7 +484,7 @@ export default function SharedMap3D({
         dist: clampedDist,
       };
     }
-  }, []);
+  }, [isMobile]);
 
   useEffect(() => {
     centerOffsetRef.current = {
@@ -546,7 +563,8 @@ export default function SharedMap3D({
     scene.fog = new THREE.FogExp2(isDarkMode ? 0x090d16 : 0xf1f5f9, 0.0007);
 
     // Camera (Perspective Isometric Style)
-    const camera = new THREE.PerspectiveCamera(40, width / height, 1, 6000);
+    const isMobileDevice = isMobile || width < 768 || (width / height) < 0.85;
+    const camera = new THREE.PerspectiveCamera(isMobileDevice ? 48 : 40, width / height, 1, 6000);
     cameraRef.current = camera;
     const initialCam = getIdealCameraPos(mapBounds, viewAngle);
     camera.position.set(initialCam.x, initialCam.y, initialCam.z);
@@ -793,6 +811,8 @@ export default function SharedMap3D({
       if (!container || !renderer || !camera) return;
       const newW = container.clientWidth;
       const newH = container.clientHeight;
+      const isMob = isMobile || newW < 768 || (newW / newH) < 0.85;
+      camera.fov = isMob ? 48 : 40;
       camera.aspect = newW / newH;
       camera.updateProjectionMatrix();
       renderer.setSize(newW, newH);
@@ -1064,6 +1084,12 @@ export default function SharedMap3D({
       walkStartTimeRef.current = performance.now();
       const p0 = getPointAtDistance(activeStepPathPoints, 0);
       avatarGroup.position.set(p0.x - centerX, 0, p0.y - centerZ);
+
+      // Pada perangkat mobile, posisikan fokus kamera langsung di sekitar avatar / rute aktif
+      if (controlsRef.current && (isMobile || window.innerWidth < 768)) {
+        controlsRef.current.target.set(p0.x - centerX, 0, p0.y - centerZ);
+        controlsRef.current.update();
+      }
     } else if (selectedKioskData) {
       // Posisi Idle di samping kiosk
       const idlePos = getIdlePosition(selectedKioskData, currentFloorRooms, currentFloorKiosks);
@@ -1071,6 +1097,10 @@ export default function SharedMap3D({
       animPhaseRef.current = "waving";
       if (avatarPartsRef.current.root) {
         avatarPartsRef.current.root.rotation.y = 0;
+      }
+      if (controlsRef.current && (isMobile || window.innerWidth < 768)) {
+        controlsRef.current.target.set(idlePos.x - centerX, 0, idlePos.y - centerZ);
+        controlsRef.current.update();
       }
     }
   }, [selectedKioskData, activeStepPathPoints, currentFloorRooms, currentFloorKiosks, mapBounds]);
@@ -1148,11 +1178,20 @@ export default function SharedMap3D({
   // Reset Camera View Helper
   const handleResetCamera = useCallback(() => {
     if (!cameraRef.current || !controlsRef.current) return;
-    controlsRef.current.target.set(0, 0, 0);
+    const isMobileDevice = isMobile || window.innerWidth < 768;
+    if (isMobileDevice && avatarGroupRef.current && avatarGroupRef.current.visible) {
+      controlsRef.current.target.copy(avatarGroupRef.current.position);
+    } else {
+      controlsRef.current.target.set(0, 0, 0);
+    }
     const ideal = getIdealCameraPos(mapBounds, viewAngle);
-    cameraRef.current.position.set(ideal.x, ideal.y, ideal.z);
+    cameraRef.current.position.set(
+      controlsRef.current.target.x + ideal.x,
+      controlsRef.current.target.y + ideal.y,
+      controlsRef.current.target.z + ideal.z
+    );
     controlsRef.current.update();
-  }, [mapBounds, viewAngle, getIdealCameraPos]);
+  }, [mapBounds, viewAngle, getIdealCameraPos, isMobile]);
 
   // Toggle View Angle (Isometric vs Top-down)
   const toggleViewAngle = () => {
@@ -1191,14 +1230,17 @@ export default function SharedMap3D({
 
       {/* Floating 3D Controls Bar */}
       <div
+        className="map3d-controls-bar"
         style={{
           position: "absolute",
-          bottom: "24px",
-          right: "24px",
+          bottom: (isMobile || window.innerWidth < 768)
+            ? (hasActiveNavigation ? "175px" : "16px")
+            : "24px",
+          right: (isMobile || window.innerWidth < 768) ? "10px" : "24px",
           display: "flex",
           flexDirection: "column",
-          gap: "10px",
-          zIndex: 40,
+          gap: (isMobile || window.innerWidth < 768) ? "6px" : "10px",
+          zIndex: 35,
         }}
       >
         {/* Toggle Follow Avatar */}
@@ -1206,7 +1248,7 @@ export default function SharedMap3D({
           <button
             onClick={() => setIsFollowingAvatar((prev) => !prev)}
             style={{
-              padding: "10px 14px",
+              padding: (isMobile || window.innerWidth < 768) ? "8px 10px" : "10px 14px",
               background: isFollowingAvatar
                 ? "var(--blue-primary, #1A73C8)"
                 : isDarkMode
@@ -1214,20 +1256,21 @@ export default function SharedMap3D({
                   : "rgba(255, 255, 255, 0.9)",
               color: isFollowingAvatar ? "#ffffff" : isDarkMode ? "#f8fafc" : "#1e293b",
               border: "1px solid rgba(255, 255, 255, 0.2)",
-              borderRadius: "12px",
+              borderRadius: "10px",
               backdropFilter: "blur(12px)",
-              fontSize: "13px",
+              fontSize: (isMobile || window.innerWidth < 768) ? "11px" : "13px",
               fontWeight: "600",
               cursor: "pointer",
               boxShadow: "0 4px 14px rgba(0,0,0,0.15)",
               display: "flex",
               alignItems: "center",
-              gap: "6px",
+              gap: "4px",
               transition: "all 0.2s ease",
             }}
             title={language === "id" ? "Kamera otomatis ikuti avatar" : "Auto follow avatar"}
           >
-            <span>{isFollowingAvatar ? (language === "id" ? "Ikuti Avatar ON" : "Follow ON") : (language === "id" ? "Ikuti Avatar" : "Follow")}</span>
+            <span>🚶</span>
+            <span>{isFollowingAvatar ? (language === "id" ? "Ikuti ON" : "Follow ON") : (language === "id" ? "Ikuti" : "Follow")}</span>
           </button>
         )}
 
@@ -1235,74 +1278,78 @@ export default function SharedMap3D({
         <button
           onClick={toggleViewAngle}
           style={{
-            padding: "10px 14px",
+            padding: (isMobile || window.innerWidth < 768) ? "8px 10px" : "10px 14px",
             background: isDarkMode ? "rgba(30, 41, 59, 0.85)" : "rgba(255, 255, 255, 0.9)",
             color: isDarkMode ? "#f8fafc" : "#1e293b",
             border: "1px solid rgba(255, 255, 255, 0.2)",
-            borderRadius: "12px",
+            borderRadius: "10px",
             backdropFilter: "blur(12px)",
-            fontSize: "13px",
+            fontSize: (isMobile || window.innerWidth < 768) ? "11px" : "13px",
             fontWeight: "600",
             cursor: "pointer",
             boxShadow: "0 4px 14px rgba(0,0,0,0.15)",
             display: "flex",
             alignItems: "center",
-            gap: "6px",
+            gap: "4px",
             transition: "all 0.2s ease",
           }}
           title={language === "id" ? "Ganti Sudut Pandang" : "Toggle View Angle"}
         >
-          <span>{viewAngle === "isometric" ? "Sudut 3D" : "Tampak Atas"}</span>
+          <span>📐</span>
+          <span>{viewAngle === "isometric" ? "3D" : "2D Atas"}</span>
         </button>
 
         {/* Reset Camera Button */}
         <button
           onClick={handleResetCamera}
           style={{
-            padding: "10px 14px",
+            padding: (isMobile || window.innerWidth < 768) ? "8px 10px" : "10px 14px",
             background: isDarkMode ? "rgba(30, 41, 59, 0.85)" : "rgba(255, 255, 255, 0.9)",
             color: isDarkMode ? "#f8fafc" : "#1e293b",
             border: "1px solid rgba(255, 255, 255, 0.2)",
-            borderRadius: "12px",
+            borderRadius: "10px",
             backdropFilter: "blur(12px)",
-            fontSize: "13px",
+            fontSize: (isMobile || window.innerWidth < 768) ? "11px" : "13px",
             fontWeight: "600",
             cursor: "pointer",
             boxShadow: "0 4px 14px rgba(0,0,0,0.15)",
             display: "flex",
             alignItems: "center",
-            gap: "6px",
+            gap: "4px",
             transition: "all 0.2s ease",
           }}
           title={language === "id" ? "Reset posisi kamera" : "Reset Camera"}
         >
-          <span>{language === "id" ? "Pusatkan Peta" : "Center Map"}</span>
+          <span>🎯</span>
+          <span>{language === "id" ? "Pusatkan" : "Center"}</span>
         </button>
       </div>
 
-      {/* Floating Info Guide Badge */}
-      <div
-        style={{
-          position: "absolute",
-          top: "70px",
-          right: "24px",
-          background: isDarkMode ? "rgba(15, 23, 42, 0.75)" : "rgba(255, 255, 255, 0.85)",
-          color: isDarkMode ? "#94a3b8" : "#64748b",
-          border: isDarkMode ? "1px solid rgba(255, 255, 255, 0.08)" : "1px solid rgba(0, 0, 0, 0.08)",
-          borderRadius: "20px",
-          padding: "6px 14px",
-          fontSize: "11px",
-          fontWeight: "500",
-          backdropFilter: "blur(8px)",
-          pointerEvents: "none",
-          display: "flex",
-          alignItems: "center",
-          gap: "8px",
-          boxShadow: "0 2px 8px rgba(0,0,0,0.06)",
-        }}
-      >
-        <span>🖱️ Putar: Klik Kiri | Geser: Klik Kanan | Zoom: Scroll</span>
-      </div>
+      {/* Floating Info Guide Badge (Hanya di Desktop) */}
+      {!isMobile && (
+        <div
+          style={{
+            position: "absolute",
+            top: "70px",
+            right: "24px",
+            background: isDarkMode ? "rgba(15, 23, 42, 0.75)" : "rgba(255, 255, 255, 0.85)",
+            color: isDarkMode ? "#94a3b8" : "#64748b",
+            border: isDarkMode ? "1px solid rgba(255, 255, 255, 0.08)" : "1px solid rgba(0, 0, 0, 0.08)",
+            borderRadius: "20px",
+            padding: "6px 14px",
+            fontSize: "11px",
+            fontWeight: "500",
+            backdropFilter: "blur(8px)",
+            pointerEvents: "none",
+            display: "flex",
+            alignItems: "center",
+            gap: "8px",
+            boxShadow: "0 2px 8px rgba(0,0,0,0.06)",
+          }}
+        >
+          <span>🖱️ Putar: Klik Kiri | Geser: Klik Kanan | Zoom: Scroll</span>
+        </div>
+      )}
     </div>
   );
 }
