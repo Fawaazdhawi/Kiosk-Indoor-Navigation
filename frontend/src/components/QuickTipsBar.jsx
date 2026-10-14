@@ -72,6 +72,7 @@ export default function QuickTipsBar({
   isDarkMode = false,
   onAction = null,
   is3DMode = false,
+  hasActiveRoute = false,
 }) {
   const [currentIndex, setCurrentIndex] = useState(0);
   const [isPaused, setIsPaused] = useState(false);
@@ -113,8 +114,26 @@ export default function QuickTipsBar({
 
   const currentTip = TIPS_DATA[currentIndex];
   const tag = language === 'en' ? currentTip.tagEn : currentTip.tagId;
-  const text = language === 'en' ? currentTip.textEn : currentTip.textId;
+
+  // Sesuaikan teks petunjuk QR: jika belum ada rute, jelaskan bahwa QR muncul setelah memilih rute
+  let text = language === 'en' ? currentTip.textEn : currentTip.textId;
+  if (currentTip.id === 'qr') {
+    if (!hasActiveRoute) {
+      text = language === 'en'
+        ? 'After selecting a destination route, you can scan the QR code to take it on your smartphone.'
+        : 'Setelah memilih rute tujuan, Anda dapat memindai QR Code untuk membawanya di smartphone.';
+    } else {
+      text = language === 'en'
+        ? 'Scan the QR code to take this interactive navigation route on your smartphone.'
+        : 'Pindai QR Code di layar untuk membawa rute aktif ini langsung di smartphone Anda.';
+    }
+  }
+
   const actionLabel = language === 'en' ? currentTip.actionLabelEn : currentTip.actionLabelId;
+
+  // Tombol aksi QR hanya boleh muncul jika rute sudah dipilih
+  const isQrWithoutRoute = currentTip.id === 'qr' && !hasActiveRoute;
+  const showAction = Boolean(currentTip.actionType && currentTip.actionType !== 'none' && !isQrWithoutRoute);
 
   // Jika tip 3D sedang aktif tapi aplikasi sudah dalam mode 3D, sesuaikan teks tombol
   let dynamicActionLabel = actionLabel;
@@ -126,6 +145,7 @@ export default function QuickTipsBar({
 
   const handleActionClick = (e) => {
     e.stopPropagation();
+    if (isQrWithoutRoute) return;
     if (onAction && currentTip.actionType && currentTip.actionType !== 'none') {
       onAction(currentTip.actionType);
     }
@@ -166,7 +186,7 @@ export default function QuickTipsBar({
 
       {/* Bagian Bawah: Tombol Aksi Cepat & Navigasi Panah / Dot */}
       <div className="quick-tips-footer">
-        {currentTip.actionType && currentTip.actionType !== 'none' ? (
+        {showAction ? (
           <button
             type="button"
             className="quick-tips-action-btn"

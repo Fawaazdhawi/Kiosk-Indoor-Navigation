@@ -937,7 +937,9 @@ export default function App() {
         startListening();
         break;
       case 'qr':
-        setIsQrModalOpen(true);
+        if (navigationSteps.length > 0) {
+          setIsQrModalOpen(true);
+        }
         break;
       case 'toggle3d':
         const next3D = !is3DMode;
@@ -1378,6 +1380,7 @@ export default function App() {
                 language={language}
                 isDarkMode={isDarkMode}
                 is3DMode={is3DMode}
+                hasActiveRoute={navigationSteps.length > 0}
                 onAction={handleQuickTipAction}
               />
 
