@@ -1186,28 +1186,37 @@ export default function SharedMap({
                 visible={animPhaseRef.current === "waving" && !!selectedKioskData && !!idlePositionRef.current}
                 listening={false}
               >
+                {/* Ground Beacon Aura */}
+                <Circle
+                  x={0}
+                  y={6}
+                  radius={16}
+                  fill={isDarkMode ? "rgba(56, 189, 248, 0.25)" : "rgba(21, 101, 192, 0.18)"}
+                  stroke={isDarkMode ? "#38bdf8" : "#1565c0"}
+                  strokeWidth={1.5}
+                />
                 {/* Kepala */}
-                <Circle x={0} y={-16} radius={7} fill="#FFCCBC" stroke="#333" strokeWidth={1} />
+                <Circle x={0} y={-16} radius={7} fill={isDarkMode ? "#ffebd6" : "#e8a588"} stroke={isDarkMode ? "#e2e8f0" : "#0f172a"} strokeWidth={1} />
                 {/* Kacamata (front view) */}
-                <Line points={[-3, -17, 3, -17]} stroke="#333" strokeWidth={1.5} />
-                <Circle x={-3.5} y={-17} radius={2} fill="rgba(100,100,100,0.3)" stroke="#333" strokeWidth={0.8} />
-                <Circle x={3.5} y={-17} radius={2} fill="rgba(100,100,100,0.3)" stroke="#333" strokeWidth={0.8} />
+                <Line points={[-3, -17, 3, -17]} stroke={isDarkMode ? "#38bdf8" : "#0f172a"} strokeWidth={1.5} />
+                <Circle x={-3.5} y={-17} radius={2} fill={isDarkMode ? "rgba(56,189,248,0.4)" : "#0f172a"} stroke={isDarkMode ? "#38bdf8" : "#0f172a"} strokeWidth={0.8} />
+                <Circle x={3.5} y={-17} radius={2} fill={isDarkMode ? "rgba(56,189,248,0.4)" : "#0f172a"} stroke={isDarkMode ? "#38bdf8" : "#0f172a"} strokeWidth={0.8} />
                 {/* Badan */}
-                <Rect x={0} y={-2} width={14} height={16} fill="#2196F3" cornerRadius={4} offsetX={7} offsetY={8} />
+                <Rect x={0} y={-2} width={14} height={16} fill={isDarkMode ? "#38bdf8" : "#1565c0"} stroke={isDarkMode ? "#93c5fd" : "#0d47a1"} strokeWidth={1} cornerRadius={4} offsetX={7} offsetY={8} />
                 {/* Lengan kiri (diam) */}
-                <Line points={[-7, -8, -10, 2, -8, 8]} stroke="#FFCCBC" strokeWidth={3} lineCap="round" lineJoin="round" />
+                <Line points={[-7, -8, -10, 2, -8, 8]} stroke={isDarkMode ? "#ffebd6" : "#e8a588"} strokeWidth={3} lineCap="round" lineJoin="round" />
                 {/* Lengan kanan (melambai) — pivot di bahu kanan */}
                 <Group ref={wavingArmRef} x={7} y={-8}>
-                  <Line points={[0, 0, 4, -8, 6, -12]} stroke="#FFCCBC" strokeWidth={3} lineCap="round" lineJoin="round" />
+                  <Line points={[0, 0, 4, -8, 6, -12]} stroke={isDarkMode ? "#ffebd6" : "#e8a588"} strokeWidth={3} lineCap="round" lineJoin="round" />
                   {/* Tangan kecil */}
-                  <Circle x={6} y={-12} radius={2} fill="#FFCCBC" />
+                  <Circle x={6} y={-12} radius={2} fill={isDarkMode ? "#ffebd6" : "#e8a588"} />
                 </Group>
                 {/* Kaki */}
-                <Line points={[-3, 6, -4, 16]} stroke="#333" strokeWidth={3} lineCap="round" />
-                <Line points={[3, 6, 4, 16]} stroke="#333" strokeWidth={3} lineCap="round" />
+                <Line points={[-3, 6, -4, 16]} stroke={isDarkMode ? "#94a3b8" : "#0f172a"} strokeWidth={3} lineCap="round" />
+                <Line points={[3, 6, 4, 16]} stroke={isDarkMode ? "#94a3b8" : "#0f172a"} strokeWidth={3} lineCap="round" />
                 {/* Sepatu */}
-                <Rect x={-6} y={15} width={5} height={3} fill="#333" cornerRadius={1} />
-                <Rect x={2} y={15} width={5} height={3} fill="#333" cornerRadius={1} />
+                <Rect x={-6} y={15} width={5} height={3} fill={isDarkMode ? "#cbd5e1" : "#0f172a"} cornerRadius={1} />
+                <Rect x={2} y={15} width={5} height={3} fill={isDarkMode ? "#cbd5e1" : "#0f172a"} cornerRadius={1} />
               </Group>
 
               {/* Top-down walking avatar — tampil saat navigasi aktif */}
@@ -1218,13 +1227,22 @@ export default function SharedMap({
                 visible={animPhaseRef.current !== "waving" && activeStepPathPoints.length >= 4}
                 listening={false}
               >
-                <Rect ref={leftFootRef} x={0} y={-8} width={10} height={6} fill="#333" cornerRadius={3} offsetX={5} offsetY={3} />
-                <Rect ref={rightFootRef} x={0} y={8} width={10} height={6} fill="#333" cornerRadius={3} offsetX={5} offsetY={3} />
-                <Rect x={0} y={0} width={16} height={24} fill="#2196F3" cornerRadius={8} offsetX={8} offsetY={12} />
-                <Circle x={0} y={0} radius={7} fill="#FFCCBC" stroke="#333" strokeWidth={1} />
-                <Line points={[3, -4, 3, 4]} stroke="#333" strokeWidth={1.5} />
-                <Circle x={4} y={-3} radius={2.5} fill="#333" />
-                <Circle x={4} y={3} radius={2.5} fill="#333" />
+                {/* Ground Beacon Aura */}
+                <Circle
+                  x={0}
+                  y={0}
+                  radius={16}
+                  fill={isDarkMode ? "rgba(56, 189, 248, 0.25)" : "rgba(21, 101, 192, 0.18)"}
+                  stroke={isDarkMode ? "#38bdf8" : "#1565c0"}
+                  strokeWidth={1.5}
+                />
+                <Rect ref={leftFootRef} x={0} y={-8} width={10} height={6} fill={isDarkMode ? "#cbd5e1" : "#0f172a"} stroke={isDarkMode ? "#94a3b8" : "#0f172a"} strokeWidth={0.8} cornerRadius={3} offsetX={5} offsetY={3} />
+                <Rect ref={rightFootRef} x={0} y={8} width={10} height={6} fill={isDarkMode ? "#cbd5e1" : "#0f172a"} stroke={isDarkMode ? "#94a3b8" : "#0f172a"} strokeWidth={0.8} cornerRadius={3} offsetX={5} offsetY={3} />
+                <Rect x={0} y={0} width={16} height={24} fill={isDarkMode ? "#38bdf8" : "#1565c0"} stroke={isDarkMode ? "#93c5fd" : "#0d47a1"} strokeWidth={1} cornerRadius={8} offsetX={8} offsetY={12} />
+                <Circle x={0} y={0} radius={7} fill={isDarkMode ? "#ffebd6" : "#e8a588"} stroke={isDarkMode ? "#e2e8f0" : "#0f172a"} strokeWidth={1} />
+                <Line points={[3, -4, 3, 4]} stroke={isDarkMode ? "#38bdf8" : "#0f172a"} strokeWidth={1.5} />
+                <Circle x={4} y={-3} radius={2.5} fill={isDarkMode ? "#38bdf8" : "#0f172a"} />
+                <Circle x={4} y={3} radius={2.5} fill={isDarkMode ? "#38bdf8" : "#0f172a"} />
               </Group>
             </Group>
           </Layer>

@@ -637,9 +637,11 @@ export default function SharedMap3D({
     // Torso
     const torsoGeo = new THREE.CylinderGeometry(4.5, 4, 10, 16);
     const torsoMat = new THREE.MeshStandardMaterial({
-      color: 0x2563eb,
+      color: isDarkMode ? 0x38bdf8 : 0x1565c0,
       roughness: 0.3,
       metalness: 0.2,
+      emissive: new THREE.Color(isDarkMode ? 0x0284c7 : 0x000000),
+      emissiveIntensity: isDarkMode ? 0.4 : 0,
     });
     const torso = new THREE.Mesh(torsoGeo, torsoMat);
     torso.position.y = 11;
@@ -649,8 +651,10 @@ export default function SharedMap3D({
     // Head
     const headGeo = new THREE.SphereGeometry(4.5, 20, 20);
     const headMat = new THREE.MeshStandardMaterial({
-      color: 0xffd1b3,
+      color: isDarkMode ? 0xffebd6 : 0xec9d7e,
       roughness: 0.5,
+      emissive: new THREE.Color(isDarkMode ? 0x442211 : 0x000000),
+      emissiveIntensity: isDarkMode ? 0.2 : 0,
     });
     const head = new THREE.Mesh(headGeo, headMat);
     head.position.y = 19;
@@ -660,9 +664,11 @@ export default function SharedMap3D({
     // Visor / Sunglasses
     const visorGeo = new THREE.BoxGeometry(6, 2, 2.5);
     const visorMat = new THREE.MeshStandardMaterial({
-      color: 0x0f172a,
+      color: isDarkMode ? 0x38bdf8 : 0x090d16,
       roughness: 0.1,
       metalness: 0.8,
+      emissive: new THREE.Color(isDarkMode ? 0x00e5ff : 0x000000),
+      emissiveIntensity: isDarkMode ? 0.5 : 0,
     });
     const visor = new THREE.Mesh(visorGeo, visorMat);
     visor.position.set(0, 19, 3.5);
@@ -670,7 +676,12 @@ export default function SharedMap3D({
 
     // Left & Right Foot
     const footGeo = new THREE.BoxGeometry(2.5, 2.5, 5);
-    const footMat = new THREE.MeshStandardMaterial({ color: 0x1e293b, roughness: 0.4 });
+    const footMat = new THREE.MeshStandardMaterial({
+      color: isDarkMode ? 0x94a3b8 : 0x090d16,
+      roughness: 0.4,
+      emissive: new THREE.Color(isDarkMode ? 0x1e293b : 0x000000),
+      emissiveIntensity: isDarkMode ? 0.25 : 0,
+    });
     const leftFoot = new THREE.Mesh(footGeo, footMat);
     leftFoot.position.set(-2.5, 1.25, 0);
     leftFoot.castShadow = true;
@@ -686,7 +697,12 @@ export default function SharedMap3D({
     armGroup.position.set(5.5, 14, 0);
     const armGeo = new THREE.CylinderGeometry(1.2, 1.2, 7, 12);
     armGeo.translate(0, 3.5, 0);
-    const armMat = new THREE.MeshStandardMaterial({ color: 0xffd1b3, roughness: 0.4 });
+    const armMat = new THREE.MeshStandardMaterial({
+      color: isDarkMode ? 0xffebd6 : 0xec9d7e,
+      roughness: 0.4,
+      emissive: new THREE.Color(isDarkMode ? 0x442211 : 0x000000),
+      emissiveIntensity: isDarkMode ? 0.2 : 0,
+    });
     const armMesh = new THREE.Mesh(armGeo, armMat);
     armGroup.add(armMesh);
     charRoot.add(armGroup);
@@ -695,9 +711,9 @@ export default function SharedMap3D({
     const ringGeo = new THREE.RingGeometry(8, 10.5, 32);
     ringGeo.rotateX(-Math.PI / 2);
     const ringMat = new THREE.MeshBasicMaterial({
-      color: 0x00d2ff,
+      color: isDarkMode ? 0x00f0ff : 0x0284c7,
       transparent: true,
-      opacity: 0.7,
+      opacity: isDarkMode ? 0.85 : 0.75,
       side: THREE.DoubleSide,
     });
     const ring = new THREE.Mesh(ringGeo, ringMat);
@@ -1103,7 +1119,7 @@ export default function SharedMap3D({
         controlsRef.current.update();
       }
     }
-  }, [selectedKioskData, activeStepPathPoints, currentFloorRooms, currentFloorKiosks, mapBounds]);
+  }, [selectedKioskData, activeStepPathPoints, currentFloorRooms, currentFloorKiosks, mapBounds, isDarkMode]);
 
   // Raycasting Pointer / Click Handlers
   const handlePointerDown = (e) => {
