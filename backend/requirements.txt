@@ -1,0 +1,15 @@
+fastapi
+uvicorn[standard]
+pydantic
+firebase-admin
+pytest
+sentence-transformers
+torch
+numpy
+python-dotenv
+loguru
+google-genai
+rapidfuzz
+sqlalchemy>=2.0.0
+psycopg2-binary>=2.9.9
+ollama>=0.4.0
