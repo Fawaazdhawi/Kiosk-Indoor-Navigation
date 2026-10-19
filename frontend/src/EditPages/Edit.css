@@ -691,3 +691,54 @@ body.dark-mode .custom-dropdown-list::-webkit-scrollbar-thumb {
   cursor: grab;
   padding-left: 10px;
 }
+
+/* ── Shape Selector & Vertex Editor ── */
+.shape-selector-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 6px;
+  margin-top: 8px;
+  margin-bottom: 8px;
+}
+
+.shape-btn {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 8px 4px;
+  border-radius: var(--radius-sm, 6px);
+  border: 1px solid var(--border);
+  background: var(--white);
+  color: var(--text-main);
+  font-size: 11px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.15s ease;
+  gap: 4px;
+}
+
+.shape-btn:hover {
+  background: var(--bg);
+  border-color: #3b82f6;
+}
+
+.shape-btn.active {
+  background: rgba(59, 130, 246, 0.12);
+  border-color: #3b82f6;
+  color: #2563eb;
+  box-shadow: 0 0 0 1px #3b82f6;
+}
+
+.shape-btn-icon {
+  font-size: 16px;
+  line-height: 1;
+}
+
+.vertex-editor-box {
+  margin-top: 8px;
+  padding: 10px;
+  background: rgba(59, 130, 246, 0.06);
+  border: 1px dashed rgba(59, 130, 246, 0.4);
+  border-radius: 8px;
+}

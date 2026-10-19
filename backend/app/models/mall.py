@@ -31,6 +31,8 @@ class Tenant(Base):
     grid_width = Column(Integer, default=4)
     grid_height = Column(Integer, default=4)
     endpoints = Column(JSON, default=["bottom"])                  # ["top", "bottom", "left", "right"]
+    shape_type = Column(String(50), default="rect")
+    points = Column(JSON, nullable=True)                          # Koordinat poligon relatif [x0, y0, x1, y1, ...]
     
     # Deskripsi & Pencarian NLP/AI
     description = Column(Text, nullable=True)
@@ -56,6 +58,8 @@ class Facility(Base):
     grid_width = Column(Integer, default=2)
     grid_height = Column(Integer, default=2)
     endpoints = Column(JSON, default=["bottom"])
+    shape_type = Column(String(50), default="rect")
+    points = Column(JSON, nullable=True)                          # Koordinat poligon relatif
     
     # Penghubung antar lantai (Lift / Eskalator)
     is_connector = Column(Boolean, default=False)
@@ -78,6 +82,8 @@ class Kiosk(Base):
     grid_width = Column(Integer, default=1)
     grid_height = Column(Integer, default=1)
     endpoints = Column(JSON, default=["bottom"])
+    shape_type = Column(String(50), default="rect")
+    points = Column(JSON, nullable=True)
     
     is_locked = Column(Boolean, default=False)
     last_ping = Column(DateTime(timezone=True), nullable=True)

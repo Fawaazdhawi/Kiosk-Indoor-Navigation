@@ -1,4 +1,5 @@
 from fastapi import FastAPI, HTTPException
+from fastapi.responses import JSONResponse
 from pydantic import BaseModel
 from typing import List, Optional, Dict, Any
 from fastapi.middleware.cors import CORSMiddleware
@@ -38,6 +39,11 @@ def muat_data_dari_postgres():
         logger.warning("[POSTGRES] SessionLocal belum siap.")
         return False
     
+    try:
+        init_db()
+    except Exception as e:
+        logger.warning(f"[POSTGRES] Peringatan saat inisialisasi schema: {e}")
+    
     db_session = SessionLocal()
     try:
         from app.models.mall import Tenant, Facility, Kiosk
@@ -61,7 +67,9 @@ def muat_data_dari_postgres():
                 "building": t.building or "Mall Utama",
                 "keywords": t.keywords or [],
                 "is_connector": False,
-                "target_building": ""
+                "target_building": "",
+                "shape_type": getattr(t, "shape_type", "rect") or "rect",
+                "points": getattr(t, "points", None)
             })
             
         # 2. Facilities (Toilet, Musholla, Lift, Eskalator)
@@ -83,7 +91,9 @@ def muat_data_dari_postgres():
                 "keywords": f.keywords or [],
                 "is_connector": f.is_connector,
                 "connector_group": f.connector_group or "",
-                "target_building": f.target_building or ""
+                "target_building": f.target_building or "",
+                "shape_type": getattr(f, "shape_type", "rect") or "rect",
+                "points": getattr(f, "points", None)
             })
 
         # 3. Kiosks
@@ -103,7 +113,9 @@ def muat_data_dari_postgres():
                 "building": k.building or "Mall Utama",
                 "keywords": [k.name, "kiosk"],
                 "is_connector": False,
-                "target_building": ""
+                "target_building": "",
+                "shape_type": getattr(k, "shape_type", "rect") or "rect",
+                "points": getattr(k, "points", None)
             })
             
         if raw_items:
@@ -118,6 +130,23 @@ def muat_data_dari_postgres():
         return False
     finally:
         db_session.close()
+
+def is_point_in_polygon(x, y, poly):
+    """Ray casting algorithm untuk mendeteksi apakah titik berada di dalam poligon."""
+    n = len(poly)
+    inside = False
+    p1x, p1y = poly[0]
+    for i in range(n + 1):
+        p2x, p2y = poly[i % n]
+        if y > min(p1y, p2y):
+            if y <= max(p1y, p2y):
+                if x <= max(p1x, p2x):
+                    if p1y != p2y:
+                        xinters = (y - p1y) * (p2x - p1x) / (p2y - p1y) + p1x
+                    if p1x == p2x or x <= xinters:
+                        inside = not inside
+        p1x, p1y = p2x, p2y
+    return inside
 
 def sinkronisasi_peta(data):
     """Mengupdate koordinat dan melatih ulang NLP saat database berubah."""
@@ -158,6 +187,8 @@ def sinkronisasi_peta(data):
                 
                 floor = item.get("floor", "Ground Floor")
                 building = item.get("building", "Mall Utama")
+                raw_points = item.get("points")
+                shape_type = item.get("shape_type", "rect")
                 
                 temp_ruangan[room_id] = {
                     "x": gx,
@@ -175,7 +206,9 @@ def sinkronisasi_peta(data):
                     "keywords": item.get("keywords", []),
                     "is_connector": item.get("is_connector", False),
                     "connector_group": item.get("connector_group", "") or "",
-                    "target_building": item.get("target_building", "") or ""
+                    "target_building": item.get("target_building", "") or "",
+                    "shape_type": shape_type,
+                    "points": raw_points
                 }
                 
                 grid_key = f"{building}_{floor}"
@@ -183,12 +216,24 @@ def sinkronisasi_peta(data):
                     temp_grid[grid_key] = [[0 for _ in range(waypoint_graph.GRID_WIDTH)] for _ in range(waypoint_graph.GRID_HEIGHT)]
                 grid = temp_grid[grid_key]
                 
-                for dy in range(gh):
-                    for dx in range(gw):
-                        ny = gy + dy
-                        nx = gx + dx
-                        if 0 <= ny < waypoint_graph.GRID_HEIGHT and 0 <= nx < waypoint_graph.GRID_WIDTH:
-                            grid[ny][nx] = 1
+                if raw_points and len(raw_points) >= 6:
+                    poly = []
+                    for i in range(0, len(raw_points), 2):
+                        poly.append((gx + raw_points[i] / 25.0, gy + raw_points[i+1] / 25.0))
+                    for dy in range(gh):
+                        for dx in range(gw):
+                            ny = gy + dy
+                            nx = gx + dx
+                            if 0 <= ny < waypoint_graph.GRID_HEIGHT and 0 <= nx < waypoint_graph.GRID_WIDTH:
+                                if is_point_in_polygon(nx + 0.5, ny + 0.5, poly):
+                                    grid[ny][nx] = 1
+                else:
+                    for dy in range(gh):
+                        for dx in range(gw):
+                            ny = gy + dy
+                            nx = gx + dx
+                            if 0 <= ny < waypoint_graph.GRID_HEIGHT and 0 <= nx < waypoint_graph.GRID_WIDTH:
+                                grid[ny][nx] = 1
                 
                 kata_kunci = item.get("keywords", [])
                 if room_name not in kata_kunci:
@@ -464,10 +509,12 @@ def get_map_data():
     db_session = SessionLocal()
     try:
         from app.models.mall import Floor, Tenant, Facility, Kiosk
-        floors = db_session.query(Floor).order_by(Floor.floor_level).all()
+        floors = db_session.query(Floor).order_by(Floor.building, Floor.floor_level).all()
         tenants = db_session.query(Tenant).filter(Tenant.is_active == True).all()
         facilities = db_session.query(Facility).all()
-        kiosks = db_session.query(Kiosk).all()
+        kiosks = db_session.query(Kiosk).order_by(Kiosk.floor, Kiosk.id).all()
+        # Sort kiosks so that Ground Floor kiosks (e.g. KIOSK_LOBBY_GF) appear first
+        kiosks = sorted(kiosks, key=lambda k: (0 if "ground" in (k.floor or "").lower() else 1, k.floor or "", k.id))
 
         rooms_list = []
         for t in tenants:
@@ -487,7 +534,9 @@ def get_map_data():
                 "grid_height": t.grid_height,
                 "endpoints": t.endpoints or ["bottom"],
                 "keywords": t.keywords or [],
-                "description": t.description
+                "description": t.description,
+                "shape_type": getattr(t, "shape_type", "rect") or "rect",
+                "points": getattr(t, "points", None)
             })
         for f in facilities:
             rooms_list.append({
@@ -505,7 +554,9 @@ def get_map_data():
                 "endpoints": f.endpoints or ["bottom"],
                 "keywords": f.keywords or [],
                 "is_connector": f.is_connector,
-                "connector_group": f.connector_group
+                "connector_group": f.connector_group,
+                "shape_type": getattr(f, "shape_type", "rect") or "rect",
+                "points": getattr(f, "points", None)
             })
 
         kiosks_list = []
@@ -520,7 +571,9 @@ def get_map_data():
                 "grid_width": k.grid_width,
                 "grid_height": k.grid_height,
                 "endpoints": k.endpoints or ["bottom"],
-                "is_locked": k.is_locked
+                "is_locked": k.is_locked,
+                "shape_type": getattr(k, "shape_type", "rect") or "rect",
+                "points": getattr(k, "points", None)
             })
 
         floors_list = [{
@@ -532,13 +585,16 @@ def get_map_data():
             "grid_height": fl.grid_height
         } for fl in floors]
 
-        return {
-            "status": "success",
-            "source": "postgresql",
-            "floors": floors_list,
-            "rooms": rooms_list,
-            "kiosks": kiosks_list
-        }
+        return JSONResponse(
+            content={
+                "status": "success",
+                "source": "postgresql",
+                "floors": floors_list,
+                "rooms": rooms_list,
+                "kiosks": kiosks_list
+            },
+            headers={"Cache-Control": "no-cache, no-store, must-revalidate"}
+        )
     except Exception as e:
         logger.error(f"Error fetching map data: {e}")
         raise HTTPException(status_code=500, detail=str(e))
@@ -576,6 +632,8 @@ class ElementItem(BaseModel):
     connector_group: Optional[str] = None
     target_building: Optional[str] = None
     description: Optional[str] = None
+    shape_type: Optional[str] = "rect"
+    points: Optional[List[float]] = None
 
 class FloorItem(BaseModel):
     name: str
@@ -605,30 +663,45 @@ def save_map_data(request: RequestSaveMap):
 
         # 2. Update atau tambah elemen
         for el in request.elements:
+            el_name = (el.name or "").strip() or "Tanpa Nama"
+            el_floor = (el.floor or "").strip() or "Ground Floor"
+            el_building = (el.building or "").strip() or "Galaxy Mall 1"
+            el_grid_x = int(el.grid_x or 0)
+            el_grid_y = int(el.grid_y or 0)
+            el_grid_w = max(1, int(el.grid_width or 1))
+            el_grid_h = max(1, int(el.grid_height or 1))
+            shape_type = getattr(el, "shape_type", "rect") or "rect"
+            points = getattr(el, "points", None)
+            endpoints = el.endpoints or ["bottom"]
+
             if el.type == "kiosk":
                 db_session.query(Tenant).filter(Tenant.id == el.id).delete(synchronize_session=False)
                 db_session.query(Facility).filter(Facility.id == el.id).delete(synchronize_session=False)
                 existing_kiosk = db_session.query(Kiosk).filter(Kiosk.id == el.id).first()
                 if existing_kiosk:
-                    existing_kiosk.name = el.name
-                    existing_kiosk.building = el.building
-                    existing_kiosk.floor = el.floor
-                    existing_kiosk.grid_x = el.grid_x
-                    existing_kiosk.grid_y = el.grid_y
-                    existing_kiosk.grid_width = el.grid_width
-                    existing_kiosk.grid_height = el.grid_height
-                    existing_kiosk.endpoints = el.endpoints or ["bottom"]
+                    existing_kiosk.name = el_name
+                    existing_kiosk.building = el_building
+                    existing_kiosk.floor = el_floor
+                    existing_kiosk.grid_x = el_grid_x
+                    existing_kiosk.grid_y = el_grid_y
+                    existing_kiosk.grid_width = el_grid_w
+                    existing_kiosk.grid_height = el_grid_h
+                    existing_kiosk.endpoints = endpoints
+                    existing_kiosk.shape_type = shape_type
+                    existing_kiosk.points = points
                 else:
                     new_kiosk = Kiosk(
                         id=el.id,
-                        name=el.name,
-                        building=el.building,
-                        floor=el.floor,
-                        grid_x=el.grid_x,
-                        grid_y=el.grid_y,
-                        grid_width=el.grid_width,
-                        grid_height=el.grid_height,
-                        endpoints=el.endpoints or ["bottom"]
+                        name=el_name,
+                        building=el_building,
+                        floor=el_floor,
+                        grid_x=el_grid_x,
+                        grid_y=el_grid_y,
+                        grid_width=el_grid_w,
+                        grid_height=el_grid_h,
+                        endpoints=endpoints,
+                        shape_type=shape_type,
+                        points=points
                     )
                     db_session.add(new_kiosk)
             else:
@@ -636,24 +709,27 @@ def save_map_data(request: RequestSaveMap):
                 existing_fac = db_session.query(Facility).filter(Facility.id == el.id).first()
                 existing_tenant = db_session.query(Tenant).filter(Tenant.id == el.id).first()
 
+                name_lower = el_name.lower()
                 is_facility = bool(
                     existing_fac or
                     el.facility_type or
                     el.is_connector or
-                    any(k in el.name.lower() for k in ["toilet", "musholla", "lift", "eskalator", "atm", "cs", "customer service", "informasi"])
+                    any(k in name_lower for k in ["toilet", "musholla", "lift", "eskalator", "atm", "cs", "customer service", "informasi"])
                 )
 
                 if is_facility:
                     if existing_fac:
-                        existing_fac.name = el.name
-                        existing_fac.name_en = el.name_en or el.name
-                        existing_fac.building = el.building
-                        existing_fac.floor = el.floor
-                        existing_fac.grid_x = el.grid_x
-                        existing_fac.grid_y = el.grid_y
-                        existing_fac.grid_width = el.grid_width
-                        existing_fac.grid_height = el.grid_height
-                        existing_fac.endpoints = el.endpoints or ["bottom"]
+                        existing_fac.name = el_name
+                        existing_fac.name_en = el.name_en or el_name
+                        existing_fac.building = el_building
+                        existing_fac.floor = el_floor
+                        existing_fac.grid_x = el_grid_x
+                        existing_fac.grid_y = el_grid_y
+                        existing_fac.grid_width = el_grid_w
+                        existing_fac.grid_height = el_grid_h
+                        existing_fac.endpoints = endpoints
+                        existing_fac.shape_type = shape_type
+                        existing_fac.points = points
                         existing_fac.is_connector = el.is_connector or False
                         existing_fac.connector_group = el.connector_group
                         existing_fac.target_building = el.target_building
@@ -663,7 +739,6 @@ def save_map_data(request: RequestSaveMap):
                         if existing_tenant:
                             db_session.delete(existing_tenant)
                         fac_type = el.facility_type or "general"
-                        name_lower = el.name.lower()
                         if "toilet" in name_lower: fac_type = "toilet"
                         elif "musholla" in name_lower: fac_type = "musholla"
                         elif "lift" in name_lower: fac_type = "elevator"
@@ -673,33 +748,37 @@ def save_map_data(request: RequestSaveMap):
 
                         new_fac = Facility(
                             id=el.id,
-                            name=el.name,
-                            name_en=el.name_en or el.name,
+                            name=el_name,
+                            name_en=el.name_en or el_name,
                             facility_type=fac_type,
-                            building=el.building,
-                            floor=el.floor,
-                            grid_x=el.grid_x,
-                            grid_y=el.grid_y,
-                            grid_width=el.grid_width,
-                            grid_height=el.grid_height,
-                            endpoints=el.endpoints or ["bottom"],
+                            building=el_building,
+                            floor=el_floor,
+                            grid_x=el_grid_x,
+                            grid_y=el_grid_y,
+                            grid_width=el_grid_w,
+                            grid_height=el_grid_h,
+                            endpoints=endpoints,
+                            shape_type=shape_type,
+                            points=points,
                             is_connector=el.is_connector or False,
                             connector_group=el.connector_group,
                             target_building=el.target_building,
-                            keywords=el.keywords if el.keywords is not None else [el.name.lower()]
+                            keywords=el.keywords if el.keywords is not None else [name_lower]
                         )
                         db_session.add(new_fac)
                 else:
                     if existing_tenant:
-                        existing_tenant.name = el.name
-                        existing_tenant.name_en = el.name_en or el.name
-                        existing_tenant.building = el.building
-                        existing_tenant.floor = el.floor
-                        existing_tenant.grid_x = el.grid_x
-                        existing_tenant.grid_y = el.grid_y
-                        existing_tenant.grid_width = el.grid_width
-                        existing_tenant.grid_height = el.grid_height
-                        existing_tenant.endpoints = el.endpoints or ["bottom"]
+                        existing_tenant.name = el_name
+                        existing_tenant.name_en = el.name_en or el_name
+                        existing_tenant.building = el_building
+                        existing_tenant.floor = el_floor
+                        existing_tenant.grid_x = el_grid_x
+                        existing_tenant.grid_y = el_grid_y
+                        existing_tenant.grid_width = el_grid_w
+                        existing_tenant.grid_height = el_grid_h
+                        existing_tenant.endpoints = endpoints
+                        existing_tenant.shape_type = shape_type
+                        existing_tenant.points = points
                         if el.category: existing_tenant.category = el.category
                         if el.sub_category: existing_tenant.sub_category = el.sub_category
                         if el.unit_number: existing_tenant.unit_number = el.unit_number
@@ -708,29 +787,34 @@ def save_map_data(request: RequestSaveMap):
                     else:
                         new_tenant = Tenant(
                             id=el.id,
-                            name=el.name,
-                            name_en=el.name_en or el.name,
+                            name=el_name,
+                            name_en=el.name_en or el_name,
                             category=el.category or "Retail",
                             sub_category=el.sub_category or "Store",
                             unit_number=el.unit_number,
-                            building=el.building,
-                            floor=el.floor,
-                            grid_x=el.grid_x,
-                            grid_y=el.grid_y,
-                            grid_width=el.grid_width,
-                            grid_height=el.grid_height,
-                            endpoints=el.endpoints or ["bottom"],
-                            description=el.description or f"Toko {el.name}",
-                            keywords=el.keywords if el.keywords is not None else [el.name.lower(), "toko", "belanja"]
+                            building=el_building,
+                            floor=el_floor,
+                            grid_x=el_grid_x,
+                            grid_y=el_grid_y,
+                            grid_width=el_grid_w,
+                            grid_height=el_grid_h,
+                            endpoints=endpoints,
+                            shape_type=shape_type,
+                            points=points,
+                            description=el.description or f"Toko {el_name}",
+                            keywords=el.keywords if el.keywords is not None else [name_lower, "toko", "belanja"]
                         )
                         db_session.add(new_tenant)
 
         # 3. Sinkronkan lantai jika ada
         if request.floors:
             for fl in request.floors:
-                target_bld = fl.building or "Mall Utama"
+                target_bld = (fl.building or "").strip() or "Galaxy Mall 1"
+                fl_name = (fl.name or "").strip()
+                if not fl_name:
+                    continue
                 existing_floor = db_session.query(Floor).filter(
-                    Floor.name == fl.name,
+                    Floor.name == fl_name,
                     Floor.building == target_bld
                 ).first()
 
@@ -739,7 +823,7 @@ def save_map_data(request: RequestSaveMap):
                         existing_floor.floor_level = fl.floor_level
                 else:
                     clean_bld = re.sub(r'[^A-Za-z0-9]', '_', target_bld).upper()[:15]
-                    clean_fl = re.sub(r'[^A-Za-z0-9]', '_', fl.name).upper()[:15]
+                    clean_fl = re.sub(r'[^A-Za-z0-9]', '_', fl_name).upper()[:15]
                     base_id = f"FL_{clean_bld}_{clean_fl}"[:40]
                     
                     candidate_id = base_id
@@ -750,7 +834,7 @@ def save_map_data(request: RequestSaveMap):
 
                     db_session.add(Floor(
                         id=candidate_id,
-                        name=fl.name,
+                        name=fl_name,
                         building=target_bld,
                         floor_level=fl.floor_level or 1,
                         grid_width=80,

@@ -234,7 +234,7 @@ export default function App() {
     cleanOldLogs();
 
     if (!db) {
-      fetch('/api/map-data')
+      fetch('/api/map-data', { cache: 'no-store' })
         .then(res => res.json())
         .then(data => {
           if (data.status === 'success' && data.rooms?.length) {
@@ -249,8 +249,10 @@ export default function App() {
             }
 
             if (data.floors?.length) {
-              setBuilding(data.floors[0].building || "Mall Utama");
-              setFloor(data.floors[0].name || "Ground Floor");
+              const defaultBld = data.floors.find(f => (data.rooms || []).some(r => r.building === f.building))?.building || data.floors[0].building || "Galaxy Mall 1";
+              const defaultFlr = data.floors.find(f => f.building === defaultBld)?.name || data.floors[0].name || "Ground Floor";
+              setBuilding(defaultBld);
+              setFloor(defaultFlr);
             }
           } else {
             setKiosks(SAMPLE_KIOSKS);

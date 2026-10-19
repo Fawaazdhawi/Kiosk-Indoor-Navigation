@@ -5,6 +5,7 @@ import { collection, onSnapshot } from "firebase/firestore";
 import { db } from "../firebase";
 import { translateName, getDisplayNodeName } from "../utils/translator";
 import { SAMPLE_ROOMS, SAMPLE_KIOSKS } from "../utils/mockData";
+import { getPresetPoints } from "../utils/shapePresets";
 
 const GRID_SIZE = 25;
 const WALL_HEIGHT = 28;
@@ -212,28 +213,50 @@ export default function SharedMap3D({
   // Normalisasi data dari props atau state lokal
   const effectiveRooms = useMemo(() => {
     const raw = (propRooms && propRooms.length > 0) ? propRooms : rooms;
-    return raw.map(r => ({
-      ...r,
-      x: r.x !== undefined ? r.x : (r.grid_x || 0) * GRID_SIZE,
-      y: r.y !== undefined ? r.y : (r.grid_y || 0) * GRID_SIZE,
-      width: r.width !== undefined ? r.width : (r.grid_width || 1) * GRID_SIZE,
-      height: r.height !== undefined ? r.height : (r.grid_height || 1) * GRID_SIZE,
-      building: r.building || "Mall Utama",
-      floor: r.floor || "Ground Floor"
-    }));
+    return raw.map(r => {
+      const width = r.width !== undefined ? r.width : (r.grid_width || 1) * GRID_SIZE;
+      const height = r.height !== undefined ? r.height : (r.grid_height || 1) * GRID_SIZE;
+      const shapeType = r.shape_type || 'rect';
+      let points = (r.points && r.points.length >= 6) ? r.points : null;
+      if (!points && shapeType !== 'rect') {
+        points = getPresetPoints(shapeType, width, height, GRID_SIZE);
+      }
+      return {
+        ...r,
+        x: r.x !== undefined ? r.x : (r.grid_x || 0) * GRID_SIZE,
+        y: r.y !== undefined ? r.y : (r.grid_y || 0) * GRID_SIZE,
+        width,
+        height,
+        shape_type: shapeType,
+        points,
+        building: r.building || "Mall Utama",
+        floor: r.floor || "Ground Floor"
+      };
+    });
   }, [propRooms, rooms]);
 
   const effectiveKiosks = useMemo(() => {
     const raw = (propKiosks && propKiosks.length > 0) ? propKiosks : kiosks;
-    return raw.map(k => ({
-      ...k,
-      x: k.x !== undefined ? k.x : (k.grid_x || 0) * GRID_SIZE,
-      y: k.y !== undefined ? k.y : (k.grid_y || 0) * GRID_SIZE,
-      width: k.width !== undefined ? k.width : (k.grid_width || 1) * GRID_SIZE,
-      height: k.height !== undefined ? k.height : (k.grid_height || 1) * GRID_SIZE,
-      building: k.building || "Mall Utama",
-      floor: k.floor || "Ground Floor"
-    }));
+    return raw.map(k => {
+      const width = k.width !== undefined ? k.width : (k.grid_width || 1) * GRID_SIZE;
+      const height = k.height !== undefined ? k.height : (k.grid_height || 1) * GRID_SIZE;
+      const shapeType = k.shape_type || 'rect';
+      let points = (k.points && k.points.length >= 6) ? k.points : null;
+      if (!points && shapeType !== 'rect') {
+        points = getPresetPoints(shapeType, width, height, GRID_SIZE);
+      }
+      return {
+        ...k,
+        x: k.x !== undefined ? k.x : (k.grid_x || 0) * GRID_SIZE,
+        y: k.y !== undefined ? k.y : (k.grid_y || 0) * GRID_SIZE,
+        width,
+        height,
+        shape_type: shapeType,
+        points,
+        building: k.building || "Mall Utama",
+        floor: k.floor || "Ground Floor"
+      };
+    });
   }, [propKiosks, kiosks]);
 
   // Three.js Core Refs
@@ -269,7 +292,7 @@ export default function SharedMap3D({
   // Firestore & Backend API Sync
   useEffect(() => {
     if (!db) {
-      fetch('/api/map-data')
+      fetch('/api/map-data', { cache: 'no-store' })
         .then(res => res.json())
         .then(data => {
           if (data.status === 'success' && data.rooms?.length) {
@@ -279,6 +302,8 @@ export default function SharedMap3D({
               y: (r.grid_y || 0) * GRID_SIZE,
               width: (r.grid_width || 1) * GRID_SIZE,
               height: (r.grid_height || 1) * GRID_SIZE,
+              shape_type: r.shape_type || 'rect',
+              points: r.points || null,
             })));
             setKiosks((data.kiosks || []).map(k => ({
               ...k,
@@ -286,6 +311,8 @@ export default function SharedMap3D({
               y: (k.grid_y || 0) * GRID_SIZE,
               width: (k.grid_width || 1) * GRID_SIZE,
               height: (k.grid_height || 1) * GRID_SIZE,
+              shape_type: k.shape_type || 'rect',
+              points: k.points || null,
             })));
             return;
           }
@@ -299,6 +326,8 @@ export default function SharedMap3D({
               y: (r.grid_y || 0) * GRID_SIZE,
               width: (r.grid_width || 1) * GRID_SIZE,
               height: (r.grid_height || 1) * GRID_SIZE,
+              shape_type: r.shape_type || 'rect',
+              points: r.points || null,
             }))
           );
           setKiosks(
@@ -308,6 +337,8 @@ export default function SharedMap3D({
               y: (k.grid_y || 0) * GRID_SIZE,
               width: (k.grid_width || 2) * GRID_SIZE,
               height: (k.grid_height || 2) * GRID_SIZE,
+              shape_type: k.shape_type || 'rect',
+              points: k.points || null,
             }))
           );
         });
@@ -334,6 +365,8 @@ export default function SharedMap3D({
             endpoints: data.endpoints || ["bottom"],
             is_connector: data.is_connector || false,
             target_building: data.target_building || "",
+            shape_type: data.shape_type || 'rect',
+            points: data.points || null,
           });
         });
         setRooms(loaded);
@@ -360,6 +393,8 @@ export default function SharedMap3D({
             height: (data.grid_height || 2) * GRID_SIZE,
             is_connector: data.is_connector || false,
             target_building: data.target_building || "",
+            shape_type: data.shape_type || 'rect',
+            points: data.points || null,
           });
         });
         setKiosks(loaded);
@@ -976,7 +1011,27 @@ export default function SharedMap3D({
       const d = Math.max(item.height - 2, 4);
       const h = isKiosk ? WALL_HEIGHT * 0.75 : WALL_HEIGHT;
 
-      const geo = new THREE.BoxGeometry(w, h, d);
+      let geo;
+      const isPolygon = item.points && item.points.length >= 6;
+      if (isPolygon) {
+        const shape = new THREE.Shape();
+        const pts = item.points;
+        const offsetX = item.width / 2;
+        const offsetZ = item.height / 2;
+        shape.moveTo(pts[0] - offsetX, -(pts[1] - offsetZ));
+        for (let i = 2; i < pts.length; i += 2) {
+          shape.lineTo(pts[i] - offsetX, -(pts[i + 1] - offsetZ));
+        }
+        shape.closePath();
+        geo = new THREE.ExtrudeGeometry(shape, {
+          depth: h,
+          bevelEnabled: false,
+        });
+        geo.rotateX(-Math.PI / 2);
+      } else {
+        geo = new THREE.BoxGeometry(w, h, d);
+      }
+
       const mat = new THREE.MeshStandardMaterial({
         color,
         roughness: isKiosk || isLift || isStairs || isPintu ? 0.3 : 0.45,
@@ -990,10 +1045,11 @@ export default function SharedMap3D({
       const mesh = new THREE.Mesh(geo, mat);
       const posX = item.x + item.width / 2 - centerX;
       const posZ = item.y + item.height / 2 - centerZ;
-      mesh.position.set(posX, h / 2, posZ);
+      const posY = isPolygon ? 0 : h / 2;
+      mesh.position.set(posX, posY, posZ);
       mesh.castShadow = true;
       mesh.receiveShadow = true;
-      mesh.userData = { room: item, originalColor: color, originalY: h / 2 };
+      mesh.userData = { room: item, originalColor: color, originalY: posY };
 
       // Edges highlight
       const edges = new THREE.EdgesGeometry(geo);

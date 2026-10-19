@@ -343,7 +343,7 @@ export default function App() {
 
   useEffect(() => {
     if (!db) {
-      fetch('/api/map-data')
+      fetch('/api/map-data', { cache: 'no-store' })
         .then(res => res.json())
         .then(data => {
           if (data.status === 'success' && data.rooms?.length) {
@@ -360,25 +360,28 @@ export default function App() {
                 if (matchedKiosk.floor) setFloor(matchedKiosk.floor);
                 if (matchedKiosk.building) setBuilding(matchedKiosk.building);
               } else {
-                // Kiosk lama (seperti K008) tidak ada di data mall sekarang
                 localStorage.removeItem("locked_kiosk_id");
                 setIsKioskLocked(false);
-                if (loadedKiosks.length > 0) {
-                  setLocation(loadedKiosks[0].id);
-                  if (loadedKiosks[0].floor) setFloor(loadedKiosks[0].floor);
-                  if (loadedKiosks[0].building) setBuilding(loadedKiosks[0].building);
+                const defaultKiosk = loadedKiosks.find(k => k.id === "KIOSK_LOBBY_GF" || (k.floor?.toLowerCase().includes("ground") && k.building?.includes("1"))) || loadedKiosks[0];
+                if (defaultKiosk) {
+                  setLocation(defaultKiosk.id);
+                  if (defaultKiosk.floor) setFloor(defaultKiosk.floor);
+                  if (defaultKiosk.building) setBuilding(defaultKiosk.building);
                 } else {
                   setLocation("");
                 }
               }
             } else if (loadedKiosks.length > 0) {
-              // Default ke kiosk pertama jika belum dipilih
-              setLocation(loadedKiosks[0].id);
-              if (loadedKiosks[0].floor) setFloor(loadedKiosks[0].floor);
-              if (loadedKiosks[0].building) setBuilding(loadedKiosks[0].building);
+              // Default ke Kiosk Lobby GF agar pengunjung langsung melihat lantai utama Ground Floor
+              const defaultKiosk = loadedKiosks.find(k => k.id === "KIOSK_LOBBY_GF" || (k.floor?.toLowerCase().includes("ground") && k.building?.includes("1"))) || loadedKiosks[0];
+              setLocation(defaultKiosk.id);
+              if (defaultKiosk.floor) setFloor(defaultKiosk.floor);
+              if (defaultKiosk.building) setBuilding(defaultKiosk.building);
             } else if (data.floors?.length) {
-              setBuilding(data.floors[0].building || "Mall Utama");
-              setFloor(data.floors[0].name || "Ground Floor");
+              const defaultBld = data.floors.find(f => (data.rooms || []).some(r => r.building === f.building))?.building || data.floors[0].building || "Galaxy Mall 1";
+              const defaultFlr = data.floors.find(f => f.building === defaultBld)?.name || data.floors[0].name || "Ground Floor";
+              setBuilding(defaultBld);
+              setFloor(defaultFlr);
             }
           } else {
             setKiosks(SAMPLE_KIOSKS);
@@ -1208,7 +1211,7 @@ export default function App() {
                             if (idxB !== -1) return 1;
                             return a.localeCompare(b);
                           });
-                          const targetFloor = newFloors.find(f => f.toLowerCase() === "lantai 1" || f.toLowerCase() === "first floor") || newFloors[0];
+                          const targetFloor = newFloors.find(f => f.toLowerCase().includes("ground") || f.toLowerCase() === "lantai 1" || f.toLowerCase() === "first floor") || newFloors[0];
                           setFloor(targetFloor);
                         }
                       }}

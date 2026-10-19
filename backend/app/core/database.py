@@ -96,6 +96,15 @@ def init_db():
     try:
         import app.models.mall  # Pastikan semua model diimpor
         Base.metadata.create_all(bind=engine)
+        from sqlalchemy import text
+        with engine.connect() as conn:
+            conn.execute(text("ALTER TABLE tenants ADD COLUMN IF NOT EXISTS shape_type VARCHAR(50) DEFAULT 'rect';"))
+            conn.execute(text("ALTER TABLE tenants ADD COLUMN IF NOT EXISTS points JSON;"))
+            conn.execute(text("ALTER TABLE facilities ADD COLUMN IF NOT EXISTS shape_type VARCHAR(50) DEFAULT 'rect';"))
+            conn.execute(text("ALTER TABLE facilities ADD COLUMN IF NOT EXISTS points JSON;"))
+            conn.execute(text("ALTER TABLE kiosks ADD COLUMN IF NOT EXISTS shape_type VARCHAR(50) DEFAULT 'rect';"))
+            conn.execute(text("ALTER TABLE kiosks ADD COLUMN IF NOT EXISTS points JSON;"))
+            conn.commit()
         logger.info("[POSTGRES] Seluruh tabel (floors, tenants, facilities, kiosks, search_analytics) berhasil diverifikasi/dibuat!")
         return True
     except Exception as e:

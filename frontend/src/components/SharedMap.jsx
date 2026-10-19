@@ -5,6 +5,7 @@ import { collection, onSnapshot } from "firebase/firestore";
 import { db } from "../firebase";
 import { translateName, getDisplayNodeName } from "../utils/translator";
 import { SAMPLE_ROOMS, SAMPLE_KIOSKS } from "../utils/mockData";
+import { getPresetPoints } from "../utils/shapePresets";
 
 function getTotalPathLength(pathPoints) {
   let total = 0;
@@ -85,28 +86,50 @@ export default function SharedMap({
 
   const effectiveRooms = useMemo(() => {
     const raw = (propRooms && propRooms.length > 0) ? propRooms : rooms;
-    return raw.map(r => ({
-      ...r,
-      x: r.x !== undefined ? r.x : (r.grid_x || 0) * GRID_SIZE,
-      y: r.y !== undefined ? r.y : (r.grid_y || 0) * GRID_SIZE,
-      width: r.width !== undefined ? r.width : (r.grid_width || 1) * GRID_SIZE,
-      height: r.height !== undefined ? r.height : (r.grid_height || 1) * GRID_SIZE,
-      building: r.building || "Mall Utama",
-      floor: r.floor || "Ground Floor"
-    }));
+    return raw.map(r => {
+      const width = r.width !== undefined ? r.width : (r.grid_width || 1) * GRID_SIZE;
+      const height = r.height !== undefined ? r.height : (r.grid_height || 1) * GRID_SIZE;
+      const shapeType = r.shape_type || 'rect';
+      let points = (r.points && r.points.length >= 6) ? r.points : null;
+      if (!points && shapeType !== 'rect') {
+        points = getPresetPoints(shapeType, width, height, GRID_SIZE);
+      }
+      return {
+        ...r,
+        x: r.x !== undefined ? r.x : (r.grid_x || 0) * GRID_SIZE,
+        y: r.y !== undefined ? r.y : (r.grid_y || 0) * GRID_SIZE,
+        width,
+        height,
+        shape_type: shapeType,
+        points,
+        building: r.building || "Mall Utama",
+        floor: r.floor || "Ground Floor"
+      };
+    });
   }, [propRooms, rooms]);
 
   const effectiveKiosks = useMemo(() => {
     const raw = (propKiosks && propKiosks.length > 0) ? propKiosks : kiosks;
-    return raw.map(k => ({
-      ...k,
-      x: k.x !== undefined ? k.x : (k.grid_x || 0) * GRID_SIZE,
-      y: k.y !== undefined ? k.y : (k.grid_y || 0) * GRID_SIZE,
-      width: k.width !== undefined ? k.width : (k.grid_width || 1) * GRID_SIZE,
-      height: k.height !== undefined ? k.height : (k.grid_height || 1) * GRID_SIZE,
-      building: k.building || "Mall Utama",
-      floor: k.floor || "Ground Floor"
-    }));
+    return raw.map(k => {
+      const width = k.width !== undefined ? k.width : (k.grid_width || 1) * GRID_SIZE;
+      const height = k.height !== undefined ? k.height : (k.grid_height || 1) * GRID_SIZE;
+      const shapeType = k.shape_type || 'rect';
+      let points = (k.points && k.points.length >= 6) ? k.points : null;
+      if (!points && shapeType !== 'rect') {
+        points = getPresetPoints(shapeType, width, height, GRID_SIZE);
+      }
+      return {
+        ...k,
+        x: k.x !== undefined ? k.x : (k.grid_x || 0) * GRID_SIZE,
+        y: k.y !== undefined ? k.y : (k.grid_y || 0) * GRID_SIZE,
+        width,
+        height,
+        shape_type: shapeType,
+        points,
+        building: k.building || "Mall Utama",
+        floor: k.floor || "Ground Floor"
+      };
+    });
   }, [propKiosks, kiosks]);
 
   const [mapSize, setMapSize] = useState(() => ({
@@ -303,7 +326,7 @@ export default function SharedMap({
 
   useEffect(() => {
     if (!db) {
-      fetch('/api/map-data')
+      fetch('/api/map-data', { cache: 'no-store' })
         .then(res => res.json())
         .then(data => {
           if (data.status === 'success' && data.rooms?.length) {
@@ -313,6 +336,8 @@ export default function SharedMap({
               y: (r.grid_y || 0) * GRID_SIZE,
               width: (r.grid_width || 1) * GRID_SIZE,
               height: (r.grid_height || 1) * GRID_SIZE,
+              shape_type: r.shape_type || 'rect',
+              points: r.points || null,
             })));
             setKiosks((data.kiosks || []).map(k => ({
               ...k,
@@ -320,6 +345,8 @@ export default function SharedMap({
               y: (k.grid_y || 0) * GRID_SIZE,
               width: (k.grid_width || 1) * GRID_SIZE,
               height: (k.grid_height || 1) * GRID_SIZE,
+              shape_type: k.shape_type || 'rect',
+              points: k.points || null,
             })));
             return;
           }
@@ -364,6 +391,8 @@ export default function SharedMap({
           endpoints: data.endpoints && data.endpoints.length > 0 ? data.endpoints : ['bottom'],
           is_connector: data.is_connector || false,
           target_building: data.target_building || "",
+          shape_type: data.shape_type || 'rect',
+          points: data.points || null,
         });
       });
       setRooms(loadedRooms);
@@ -374,15 +403,6 @@ export default function SharedMap({
 
   useEffect(() => {
     if (!db) {
-      setKiosks(
-        SAMPLE_KIOSKS.map((k) => ({
-          ...k,
-          x: (k.grid_x || 0) * GRID_SIZE,
-          y: (k.grid_y || 0) * GRID_SIZE,
-          width: (k.grid_width || 2) * GRID_SIZE,
-          height: (k.grid_height || 2) * GRID_SIZE,
-        }))
-      );
       return;
     }
     const unsubscribeKiosks = onSnapshot(collection(db, "Kiosks"), (snapshot) => {
@@ -1091,7 +1111,21 @@ export default function SharedMap({
                       onMouseEnter={(e) => { if (onRoomClick) { e.target.getStage().container().style.cursor = 'pointer'; } }}
                       onMouseLeave={(e) => { if (onRoomClick) { e.target.getStage().container().style.cursor = 'default'; } }}
                     >
-                      <Rect x={room.x} y={room.y} width={room.width} height={room.height} fill={fillCol} stroke={strokeCol} strokeWidth={2} perfectDrawEnabled={false} shadowForStrokeEnabled={false} />
+                      {room.points && room.points.length >= 6 ? (
+                        <Line
+                          x={room.x}
+                          y={room.y}
+                          points={room.points}
+                          closed={true}
+                          fill={fillCol}
+                          stroke={strokeCol}
+                          strokeWidth={2}
+                          perfectDrawEnabled={false}
+                          shadowForStrokeEnabled={false}
+                        />
+                      ) : (
+                        <Rect x={room.x} y={room.y} width={room.width} height={room.height} fill={fillCol} stroke={strokeCol} strokeWidth={2} perfectDrawEnabled={false} shadowForStrokeEnabled={false} />
+                      )}
                       <Text
                         text={textContent}
                         x={room.x} y={room.y} width={room.width} height={room.height}
@@ -1146,7 +1180,22 @@ export default function SharedMap({
                       onMouseEnter={(e) => { if (isInteractive) { e.target.getStage().container().style.cursor = 'pointer'; } }}
                       onMouseLeave={(e) => { if (isInteractive) { e.target.getStage().container().style.cursor = 'default'; } }}
                     >
-                      <Rect x={kiosk.x} y={kiosk.y} width={kiosk.width} height={kiosk.height} fill={fillCol} stroke={strokeCol} strokeWidth={2} perfectDrawEnabled={false} shadowForStrokeEnabled={false} listening={!isInteractive ? false : undefined} />
+                      {kiosk.points && kiosk.points.length >= 6 ? (
+                        <Line
+                          x={kiosk.x}
+                          y={kiosk.y}
+                          points={kiosk.points}
+                          closed={true}
+                          fill={fillCol}
+                          stroke={strokeCol}
+                          strokeWidth={2}
+                          perfectDrawEnabled={false}
+                          shadowForStrokeEnabled={false}
+                          listening={!isInteractive ? false : undefined}
+                        />
+                      ) : (
+                        <Rect x={kiosk.x} y={kiosk.y} width={kiosk.width} height={kiosk.height} fill={fillCol} stroke={strokeCol} strokeWidth={2} perfectDrawEnabled={false} shadowForStrokeEnabled={false} listening={!isInteractive ? false : undefined} />
+                      )}
 
                       <Text
                         text={textContent}

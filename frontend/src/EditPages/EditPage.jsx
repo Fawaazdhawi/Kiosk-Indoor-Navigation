@@ -2,25 +2,33 @@ import React, { useState, useRef, useEffect, useCallback, useMemo } from "react"
 import LogoImg from '../assets/Logo.png';
 import { useNavigate } from "react-router";
 import { TransformWrapper, TransformComponent } from "react-zoom-pan-pinch";
-import { Stage, Layer, Rect, Text, Line, Transformer } from "react-konva";
+import { Stage, Layer, Rect, Text, Line, Transformer, Circle } from "react-konva";
 import { collection, getDocs, doc, writeBatch, getDoc } from "firebase/firestore";
 import { db } from "../firebase";
 import { translateName } from "../utils/translator";
 import { SAMPLE_ROOMS, SAMPLE_KIOSKS } from "../utils/mockData";
 import { PromptDialog, AlertDialog, ConfirmDialog } from "../components/Dialogs";
 import LanguageSelector from "../components/LanguageSelector";
+import { SHAPE_TYPES, getPresetPoints, normalizePolygonPoints } from "../utils/shapePresets";
 import "./Edit.css";
 
-const ElementShape = React.memo(({ shapeProps, isSelected, onSelect, onChange, setIsDraggingElement, GRID_SIZE, originalElements, language, isDarkMode, onRequestRename }) => {
+const ElementShape = React.memo(({
+  shapeProps,
+  isSelected,
+  isEditingVertices,
+  selectedVertexIndex,
+  onSelectVertex,
+  onVertexDrag,
+  onSelect,
+  onChange,
+  setIsDraggingElement,
+  GRID_SIZE,
+  originalElements,
+  language,
+  isDarkMode,
+  onRequestRename
+}) => {
   const shapeRef = useRef();
-  const trRef = useRef();
-
-  useEffect(() => {
-    if (isSelected && trRef.current) {
-      trRef.current.nodes([shapeRef.current]);
-      trRef.current.getLayer().batchDraw();
-    }
-  }, [isSelected]);
 
   const handleRename = () => {
     const typeLabel = shapeProps.type === 'kiosk' ? (language === 'en' ? 'Kiosk' : 'Kiosk') : (language === 'en' ? 'Room' : 'Ruangan');
@@ -114,41 +122,83 @@ const ElementShape = React.memo(({ shapeProps, isSelected, onSelect, onChange, s
     });
   };
 
+  const hasPoints = shapeProps.points && shapeProps.points.length >= 6;
+
   return (
     <React.Fragment>
-      <Rect
-        onClick={onSelect}
-        onTap={onSelect}
-        onDblClick={handleRename}
-        onDblTap={handleRename}
-        ref={shapeRef}
-        id={shapeProps.id}
-        {...shapeProps}
-        fill={visualColors.fill}
-        stroke={visualColors.stroke}
-        draggable
-        strokeWidth={isSelected ? 3 : 2}
-        perfectDrawEnabled={false}
-        shadowForStrokeEnabled={false}
-        onTouchStart={() => setIsDraggingElement(true)}
-        onTouchEnd={() => setIsDraggingElement(false)}
-        onMouseDown={() => setIsDraggingElement(true)}
-        onMouseUp={() => setIsDraggingElement(false)}
-        onDragStart={() => setIsDraggingElement(true)}
-        onTransformStart={() => setIsDraggingElement(true)}
-        dragBoundFunc={(pos) => ({
-          x: Math.round(pos.x / GRID_SIZE) * GRID_SIZE,
-          y: Math.round(pos.y / GRID_SIZE) * GRID_SIZE,
-        })}
-        onDragEnd={(e) => {
-          setIsDraggingElement(false);
-          onChange({
-            ...shapeProps,
-            x: Math.round(e.target.x() / GRID_SIZE) * GRID_SIZE,
-            y: Math.round(e.target.y() / GRID_SIZE) * GRID_SIZE,
-          }, "drag");
-        }}
-      />
+      {hasPoints ? (
+        <Line
+          onClick={onSelect}
+          onTap={onSelect}
+          onDblClick={handleRename}
+          onDblTap={handleRename}
+          ref={shapeRef}
+          id={shapeProps.id}
+          x={shapeProps.x}
+          y={shapeProps.y}
+          points={shapeProps.points}
+          closed={true}
+          fill={visualColors.fill}
+          stroke={visualColors.stroke}
+          draggable={!isEditingVertices}
+          strokeWidth={isSelected ? 3 : 2}
+          perfectDrawEnabled={false}
+          shadowForStrokeEnabled={false}
+          onTouchStart={() => setIsDraggingElement(true)}
+          onTouchEnd={() => setIsDraggingElement(false)}
+          onMouseDown={() => setIsDraggingElement(true)}
+          onMouseUp={() => setIsDraggingElement(false)}
+          onDragStart={() => setIsDraggingElement(true)}
+          onTransformStart={() => setIsDraggingElement(true)}
+          dragBoundFunc={(pos) => ({
+            x: Math.round(pos.x / GRID_SIZE) * GRID_SIZE,
+            y: Math.round(pos.y / GRID_SIZE) * GRID_SIZE,
+          })}
+          onDragEnd={(e) => {
+            setIsDraggingElement(false);
+            onChange({
+              ...shapeProps,
+              x: Math.round(e.target.x() / GRID_SIZE) * GRID_SIZE,
+              y: Math.round(e.target.y() / GRID_SIZE) * GRID_SIZE,
+            }, "drag");
+          }}
+        />
+      ) : (
+        <Rect
+          onClick={onSelect}
+          onTap={onSelect}
+          onDblClick={handleRename}
+          onDblTap={handleRename}
+          ref={shapeRef}
+          id={shapeProps.id}
+          {...shapeProps}
+          fill={visualColors.fill}
+          stroke={visualColors.stroke}
+          draggable
+          strokeWidth={isSelected ? 3 : 2}
+          perfectDrawEnabled={false}
+          shadowForStrokeEnabled={false}
+          onTouchStart={() => setIsDraggingElement(true)}
+          onTouchEnd={() => setIsDraggingElement(false)}
+          onMouseDown={() => setIsDraggingElement(true)}
+          onMouseUp={() => setIsDraggingElement(false)}
+          onDragStart={() => setIsDraggingElement(true)}
+          onTransformStart={() => setIsDraggingElement(true)}
+          dragBoundFunc={(pos) => ({
+            x: Math.round(pos.x / GRID_SIZE) * GRID_SIZE,
+            y: Math.round(pos.y / GRID_SIZE) * GRID_SIZE,
+          })}
+          onDragEnd={(e) => {
+            setIsDraggingElement(false);
+            onChange({
+              ...shapeProps,
+              x: Math.round(e.target.x() / GRID_SIZE) * GRID_SIZE,
+              y: Math.round(e.target.y() / GRID_SIZE) * GRID_SIZE,
+            }, "drag");
+          }}
+        />
+      )}
+
       <Text
         text={textContent}
         x={shapeProps.x}
@@ -168,11 +218,53 @@ const ElementShape = React.memo(({ shapeProps, isSelected, onSelect, onChange, s
       />
       {renderEndpoints()}
 
+      {/* Titik Sudut Draggable Handles saat Mode Edit Titik Aktif */}
+      {isEditingVertices && isSelected && hasPoints && (
+        Array.from({ length: shapeProps.points.length / 2 }).map((_, vIdx) => {
+          const vx = shapeProps.x + shapeProps.points[vIdx * 2];
+          const vy = shapeProps.y + shapeProps.points[vIdx * 2 + 1];
+          const isVSelected = selectedVertexIndex === vIdx;
+          return (
+            <Circle
+              key={`vertex-handle-${vIdx}`}
+              x={vx}
+              y={vy}
+              radius={isVSelected ? 7 : 5.5}
+              fill={isVSelected ? "#ef4444" : "#2563eb"}
+              stroke="#ffffff"
+              strokeWidth={2}
+              draggable
+              dragBoundFunc={(pos) => ({
+                x: Math.round(pos.x / GRID_SIZE) * GRID_SIZE,
+                y: Math.round(pos.y / GRID_SIZE) * GRID_SIZE,
+              })}
+              onClick={(e) => {
+                e.cancelBubble = true;
+                onSelectVertex && onSelectVertex(vIdx);
+              }}
+              onTap={(e) => {
+                e.cancelBubble = true;
+                onSelectVertex && onSelectVertex(vIdx);
+              }}
+              onDragStart={() => setIsDraggingElement(true)}
+              onDragEnd={(e) => {
+                setIsDraggingElement(false);
+                const absX = Math.round(e.target.x() / GRID_SIZE) * GRID_SIZE;
+                const absY = Math.round(e.target.y() / GRID_SIZE) * GRID_SIZE;
+                onVertexDrag && onVertexDrag(vIdx, absX, absY);
+              }}
+            />
+          );
+        })
+      )}
+
     </React.Fragment>
   );
 }, (prev, next) => {
   return (
     prev.isSelected === next.isSelected &&
+    prev.isEditingVertices === next.isEditingVertices &&
+    prev.selectedVertexIndex === next.selectedVertexIndex &&
     prev.language === next.language &&
     prev.isDarkMode === next.isDarkMode &&
     prev.GRID_SIZE === next.GRID_SIZE &&
@@ -183,6 +275,8 @@ const ElementShape = React.memo(({ shapeProps, isSelected, onSelect, onChange, s
     prev.shapeProps.name === next.shapeProps.name &&
     prev.shapeProps.floor === next.shapeProps.floor &&
     prev.shapeProps.type === next.shapeProps.type &&
+    prev.shapeProps.shape_type === next.shapeProps.shape_type &&
+    (prev.shapeProps.points || []).join(',') === (next.shapeProps.points || []).join(',') &&
     (prev.shapeProps.endpoints || []).join(',') === (next.shapeProps.endpoints || []).join(',')
   );
 });
@@ -222,6 +316,16 @@ export default function EditPage() {
     };
   }, []);
   const [selectedIds, setSelectedIds] = useState([]);
+  const [isEditingVertices, setIsEditingVertices] = useState(false);
+  const [selectedVertexIndex, setSelectedVertexIndex] = useState(0);
+
+  useEffect(() => {
+    if (selectedIds.length !== 1) {
+      setIsEditingVertices(false);
+      setSelectedVertexIndex(0);
+    }
+  }, [selectedIds]);
+
   const [selectionRect, setSelectionRect] = useState({ visible: false, x: 0, y: 0, width: 0, height: 0 });
   const selectionStartRef = useRef({ x: 0, y: 0 });
   const [deletedElements, setDeletedElements] = useState([]);
@@ -243,9 +347,9 @@ export default function EditPage() {
   const [isBuildingDropdownOpen, setIsBuildingDropdownOpen] = useState(false);
   const dragItemIndexRef = useRef(null);
   const dragOverItemIndexRef = useRef(null);
-  const touchDragDataRef = useRef(null);
   const globalFloorOrderRef = useRef({});
   const globalBuildingOrderRef = useRef([]);
+  const allServerFloorsRef = useRef([]);
   const [language, setLanguage] = useState(localStorage.getItem('language') || 'id');
   const [isDarkMode, setIsDarkMode] = useState(() => {
     return localStorage.getItem('theme') === 'dark';
@@ -335,12 +439,16 @@ export default function EditPage() {
 
   useEffect(() => {
     if (trRef.current) {
-      const stage = trRef.current.getStage();
-      const nodes = selectedIds.map(id => stage.findOne('#' + id)).filter(Boolean);
-      trRef.current.nodes(nodes);
+      if (isEditingVertices) {
+        trRef.current.nodes([]);
+      } else {
+        const stage = trRef.current.getStage();
+        const nodes = selectedIds.map(id => stage.findOne('#' + id)).filter(Boolean);
+        trRef.current.nodes(nodes);
+      }
       trRef.current.getLayer().batchDraw();
     }
-  }, [selectedIds, placedElements]);
+  }, [selectedIds, placedElements, isEditingVertices]);
   const transformRef = useRef(null);
   const GRID_SIZE = 25;
 
@@ -410,6 +518,8 @@ export default function EditPage() {
                 width: (r.grid_width || 1) * GRID_SIZE,
                 height: (r.grid_height || 1) * GRID_SIZE,
                 endpoints: r.endpoints && r.endpoints.length > 0 ? r.endpoints : ['bottom'],
+                shape_type: r.shape_type || 'rect',
+                points: r.points || null,
                 keywords: r.keywords || [],
                 description: r.description || ''
               });
@@ -433,6 +543,8 @@ export default function EditPage() {
                 y: (k.grid_y || 0) * GRID_SIZE,
                 width: (k.grid_width || 2) * GRID_SIZE,
                 height: (k.grid_height || 2) * GRID_SIZE,
+                shape_type: k.shape_type || 'rect',
+                points: k.points || null,
                 endpoints: k.endpoints && k.endpoints.length > 0 ? k.endpoints : ['bottom']
               });
             });
@@ -442,11 +554,15 @@ export default function EditPage() {
             setHistory([allElements]);
             setHistoryStep(0);
 
-            const finalBuildings = Array.from(uniqueBuildings);
-            if (finalBuildings.length === 0) finalBuildings.push("Mall Utama");
+            allServerFloorsRef.current = data.floors || [];
+            (data.floors || []).forEach(f => {
+              if (f.building) uniqueBuildings.add(f.building);
+            });
+            const finalBuildings = Array.from(uniqueBuildings).sort();
+            if (finalBuildings.length === 0) finalBuildings.push("Galaxy Mall 1");
             setBuildings(finalBuildings);
 
-            const initialBuilding = finalBuildings[0] || "Mall Utama";
+            const initialBuilding = finalBuildings.includes("Galaxy Mall 1") ? "Galaxy Mall 1" : finalBuildings[0];
             setActiveEditBuilding(initialBuilding);
 
             let initialFloors = (data.floors || [])
@@ -495,6 +611,8 @@ export default function EditPage() {
             width: (data.grid_width || 1) * GRID_SIZE,
             height: (data.grid_height || 1) * GRID_SIZE,
             endpoints: data.endpoints && data.endpoints.length > 0 ? data.endpoints : ['bottom'],
+            shape_type: data.shape_type || 'rect',
+            points: data.points || null,
             keywords: data.keywords || []
           });
         });
@@ -516,6 +634,8 @@ export default function EditPage() {
             y: (data.grid_y || 0) * GRID_SIZE,
             width: (data.grid_width || 2) * GRID_SIZE,
             height: (data.grid_height || 2) * GRID_SIZE,
+            shape_type: data.shape_type || 'rect',
+            points: data.points || null,
             endpoints: data.endpoints && data.endpoints.length > 0 ? data.endpoints : ['bottom']
           });
         });
@@ -589,6 +709,11 @@ export default function EditPage() {
     currentElements.forEach(el => {
       if (el.building === newBuilding && el.floor && !el.floor.startsWith("submap_")) {
         bFloors.add(el.floor);
+      }
+    });
+    (allServerFloorsRef.current || []).forEach(f => {
+      if (f.building === newBuilding && f.name && !f.name.startsWith("submap_")) {
+        bFloors.add(f.name);
       }
     });
     let newFloors = Array.from(bFloors);
@@ -716,6 +841,145 @@ export default function EditPage() {
       setClipboardElement(pastedEl);
     }
   }, [clipboardElement, placedElements, saveHistory, activeEditFloor, activeEditBuilding]);
+
+  const handleVertexDrag = useCallback((vIdx, absX, absY) => {
+    if (selectedIds.length !== 1) return;
+    const targetId = selectedIds[0];
+    const { placedElements } = stateRef.current;
+    const elIndex = placedElements.findIndex(e => e.id === targetId);
+    if (elIndex === -1) return;
+
+    const el = placedElements[elIndex];
+    if (!el.points || el.points.length < 6) return;
+
+    const newPoints = [...el.points];
+    newPoints[vIdx * 2] = absX - el.x;
+    newPoints[vIdx * 2 + 1] = absY - el.y;
+
+    const normalized = normalizePolygonPoints(newPoints, el.x, el.y, GRID_SIZE);
+    const updatedEl = {
+      ...el,
+      x: normalized.x,
+      y: normalized.y,
+      width: normalized.width,
+      height: normalized.height,
+      points: normalized.points,
+      shape_type: el.shape_type === 'rect' ? 'polygon' : (el.shape_type || 'polygon'),
+    };
+
+    const newElements = placedElements.map((item, idx) => idx === elIndex ? updatedEl : item);
+    setPlacedElements(newElements);
+    saveHistory(newElements);
+  }, [selectedIds, GRID_SIZE, saveHistory]);
+
+  const handleAddVertex = useCallback(() => {
+    if (selectedIds.length !== 1) return;
+    const targetId = selectedIds[0];
+    const el = placedElements.find(e => e.id === targetId);
+    if (!el) return;
+
+    let pts = el.points;
+    if (!pts || pts.length < 6) {
+      pts = getPresetPoints(el.shape_type || 'polygon', el.width, el.height, GRID_SIZE);
+    }
+
+    const numVertices = pts.length / 2;
+    const curIdx = Math.min(selectedVertexIndex, numVertices - 1);
+    const nextIdx = (curIdx + 1) % numVertices;
+
+    const p1x = pts[curIdx * 2];
+    const p1y = pts[curIdx * 2 + 1];
+    const p2x = pts[nextIdx * 2];
+    const p2y = pts[nextIdx * 2 + 1];
+
+    const midX = Math.round(((p1x + p2x) / 2) / GRID_SIZE) * GRID_SIZE;
+    const midY = Math.round(((p1y + p2y) / 2) / GRID_SIZE) * GRID_SIZE;
+
+    const newPts = [...pts];
+    newPts.splice((curIdx + 1) * 2, 0, midX, midY);
+
+    const normalized = normalizePolygonPoints(newPts, el.x, el.y, GRID_SIZE);
+    const updatedEl = {
+      ...el,
+      x: normalized.x,
+      y: normalized.y,
+      width: normalized.width,
+      height: normalized.height,
+      points: normalized.points,
+      shape_type: 'polygon'
+    };
+
+    const newElements = placedElements.map(e => e.id === targetId ? updatedEl : e);
+    setPlacedElements(newElements);
+    saveHistory(newElements);
+    setSelectedVertexIndex(curIdx + 1);
+  }, [selectedIds, placedElements, selectedVertexIndex, GRID_SIZE, saveHistory]);
+
+  const handleRemoveVertex = useCallback(() => {
+    if (selectedIds.length !== 1) return;
+    const targetId = selectedIds[0];
+    const el = placedElements.find(e => e.id === targetId);
+    if (!el || !el.points || el.points.length <= 6) {
+      showAlert(language === 'id' ? 'Bentuk poligon minimal harus memiliki 3 titik sudut!' : 'Polygon must have at least 3 vertices!');
+      return;
+    }
+
+    const curIdx = Math.min(selectedVertexIndex, (el.points.length / 2) - 1);
+    const newPts = [...el.points];
+    newPts.splice(curIdx * 2, 2);
+
+    const normalized = normalizePolygonPoints(newPts, el.x, el.y, GRID_SIZE);
+    const updatedEl = {
+      ...el,
+      x: normalized.x,
+      y: normalized.y,
+      width: normalized.width,
+      height: normalized.height,
+      points: normalized.points,
+      shape_type: 'polygon'
+    };
+
+    const newElements = placedElements.map(e => e.id === targetId ? updatedEl : e);
+    setPlacedElements(newElements);
+    saveHistory(newElements);
+    setSelectedVertexIndex(Math.max(0, curIdx - 1));
+  }, [selectedIds, placedElements, selectedVertexIndex, GRID_SIZE, language, showAlert, saveHistory]);
+
+  const handleShapeTypeChange = useCallback((newShapeType) => {
+    if (selectedIds.length !== 1) return;
+    const targetId = selectedIds[0];
+    const el = placedElements.find(e => e.id === targetId);
+    if (!el) return;
+
+    if (newShapeType === 'rect') {
+      const updatedEl = {
+        ...el,
+        shape_type: 'rect',
+        points: null,
+      };
+      const newElements = placedElements.map(e => e.id === targetId ? updatedEl : e);
+      setPlacedElements(newElements);
+      saveHistory(newElements);
+      setIsEditingVertices(false);
+      return;
+    }
+
+    const pts = getPresetPoints(newShapeType, el.width, el.height, GRID_SIZE);
+    const normalized = normalizePolygonPoints(pts, el.x, el.y, GRID_SIZE);
+    const updatedEl = {
+      ...el,
+      shape_type: newShapeType,
+      x: normalized.x,
+      y: normalized.y,
+      width: normalized.width,
+      height: normalized.height,
+      points: normalized.points
+    };
+
+    const newElements = placedElements.map(e => e.id === targetId ? updatedEl : e);
+    setPlacedElements(newElements);
+    saveHistory(newElements);
+  }, [selectedIds, placedElements, GRID_SIZE, saveHistory]);
 
   useEffect(() => {
     const handleKeyDown = (e) => {
@@ -1097,10 +1361,16 @@ export default function EditPage() {
         });
       } else if (dragData.type === "new-room") {
         newId = generateNextRoomId();
+        const w = GRID_SIZE * (dragData.defaultGridWidth || 4);
+        const h = GRID_SIZE * (dragData.defaultGridHeight || 2);
+        const shapeType = dragData.shapeType || 'rect';
+        const pts = shapeType !== 'rect' ? getPresetPoints(shapeType, w, h, GRID_SIZE) : null;
         newElements.push({
           id: newId, type: 'room', floor: activeEditFloor, building: activeEditBuilding,
-          x: snappedX, y: snappedY, width: GRID_SIZE * (dragData.defaultGridWidth || 4), height: GRID_SIZE * (dragData.defaultGridHeight || 2),
+          x: snappedX, y: snappedY, width: w, height: h,
           endpoints: dragData.endpoints, name: dragData.defaultName,
+          shape_type: shapeType,
+          points: pts,
         });
       } else if (dragData.type === "new-connector") {
         newId = generateNextRoomId();
@@ -1215,6 +1485,8 @@ export default function EditPage() {
             grid_width: Math.round(el.width / GRID_SIZE) || 1,
             grid_height: Math.round(el.height / GRID_SIZE) || 1,
             endpoints: el.endpoints && el.endpoints.length > 0 ? el.endpoints : ['bottom'],
+            shape_type: el.shape_type || 'rect',
+            points: el.points || null,
             keywords: el.keywords || [],
             is_connector: Boolean(el.is_connector),
             connector_group: el.connector_group || null,
@@ -1286,6 +1558,8 @@ export default function EditPage() {
             grid_y: Math.round(el.y / GRID_SIZE) || 0,
             grid_width: Math.round(el.width / GRID_SIZE) || 1,
             grid_height: Math.round(el.height / GRID_SIZE) || 1,
+            shape_type: el.shape_type || 'rect',
+            points: el.points || null,
             ...((el.type === 'room' || el.type === 'kiosk') && { endpoints: el.endpoints || ['bottom'] }),
             ...(el.is_connector && { is_connector: true, target_building: el.target_building || "" })
           };
@@ -1368,8 +1642,9 @@ export default function EditPage() {
   };
 
   const activeFloorElements = useMemo(() => {
-    return placedElements.filter(el => el.floor === activeEditFloor && (el.building || activeEditBuilding || "Mall Utama") === activeEditBuilding);
-  }, [placedElements, activeEditFloor, activeEditBuilding]);
+    const currentBld = activeEditBuilding || (buildings.length > 0 ? buildings[0] : "Mall Utama");
+    return placedElements.filter(el => el.floor === activeEditFloor && (el.building || currentBld) === currentBld);
+  }, [placedElements, activeEditFloor, activeEditBuilding, buildings]);
 
   // Outline batas gedung fleksibel di halaman admin edit
   const activeFloorBounds = useMemo(() => {
@@ -1519,6 +1794,10 @@ export default function EditPage() {
                           key={rect.id}
                           shapeProps={rect}
                           isSelected={selectedIds.includes(rect.id)}
+                          isEditingVertices={isEditingVertices && selectedIds.length === 1 && selectedIds[0] === rect.id}
+                          selectedVertexIndex={selectedVertexIndex}
+                          onSelectVertex={(vIdx) => setSelectedVertexIndex(vIdx)}
+                          onVertexDrag={handleVertexDrag}
                           setIsDraggingElement={setIsDraggingElement}
                           GRID_SIZE={GRID_SIZE}
                           onSelect={(e) => {
@@ -1623,7 +1902,7 @@ export default function EditPage() {
                         listening={false}
                       />
                     )}
-                    {selectedIds.length > 0 && (
+                    {selectedIds.length > 0 && !isEditingVertices && (
                       <Transformer ref={trRef} rotateEnabled={false}
                         boundBoxFunc={(oldBox, newBox) => {
                           if (newBox.width < GRID_SIZE || newBox.height < GRID_SIZE) {
@@ -1646,12 +1925,21 @@ export default function EditPage() {
                             const id = node.id();
                             const index = newElements.findIndex(e => e.id === id);
                             if (index !== -1) {
+                              const el = newElements[index];
+                              let newPoints = el.points;
+                              if (newPoints && newPoints.length >= 6) {
+                                newPoints = newPoints.map((val, pIdx) => {
+                                  const factor = pIdx % 2 === 0 ? scaleX : scaleY;
+                                  return Math.round(val * factor);
+                                });
+                              }
                               newElements[index] = {
-                                ...newElements[index],
+                                ...el,
                                 x: Math.round(node.x() / GRID_SIZE) * GRID_SIZE,
                                 y: Math.round(node.y() / GRID_SIZE) * GRID_SIZE,
                                 width: Math.max(GRID_SIZE, Math.round((node.width() * scaleX) / GRID_SIZE) * GRID_SIZE),
                                 height: Math.max(GRID_SIZE, Math.round((node.height() * scaleY) / GRID_SIZE) * GRID_SIZE),
+                                points: newPoints,
                               };
                             }
                           });
@@ -1945,6 +2233,89 @@ export default function EditPage() {
                         })}
                       </div>
                     </div>
+
+                    {/* Pemilihan Bentuk Ruangan / Layout Preset & Vertex Editor */}
+                    <div className="endpoint-controls edit-card-inner">
+                      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                        <h4 className="endpoint-title" style={{ margin: 0 }}>
+                          {language === 'id' ? 'Bentuk Layout' : 'Shape Layout'}
+                        </h4>
+                        {room.points && room.points.length >= 6 && (
+                          <span style={{ fontSize: "11px", color: "var(--primary-color)", fontWeight: "600" }}>
+                            {room.points.length / 2} {language === 'id' ? 'titik' : 'pts'}
+                          </span>
+                        )}
+                      </div>
+                      <div className="shape-selector-grid">
+                        {SHAPE_TYPES.map(st => {
+                          const isCurrentShape = (room.shape_type || 'rect') === st.id;
+                          return (
+                            <button
+                              key={st.id}
+                              type="button"
+                              className={`shape-btn ${isCurrentShape ? 'active' : ''}`}
+                              onClick={() => handleShapeTypeChange(st.id)}
+                              title={st.desc}
+                            >
+                              <span className="shape-btn-icon">{st.icon}</span>
+                              <span>{st.label}</span>
+                            </button>
+                          );
+                        })}
+                      </div>
+
+                      {room.shape_type && room.shape_type !== 'rect' && (
+                        <div className="vertex-editor-box">
+                          <div style={{ display: "flex", gap: "6px", marginBottom: "8px" }}>
+                            <button
+                              type="button"
+                              className={`edit-btn ${isEditingVertices ? 'btn-primary' : 'btn-secondary'}`}
+                              style={{ flex: 1, fontSize: "11px", padding: "6px 8px" }}
+                              onClick={() => setIsEditingVertices(prev => !prev)}
+                            >
+                              {isEditingVertices ? (language === 'id' ? '✓ Selesai Edit Titik' : '✓ Done Editing') : (language === 'id' ? '✏️ Edit Titik Sudut' : '✏️ Edit Vertices')}
+                            </button>
+                          </div>
+
+                          {isEditingVertices && (
+                            <div style={{ display: "flex", flexDirection: "column", gap: "6px" }}>
+                              <p style={{ fontSize: "10px", color: "var(--primary-color)", margin: 0, fontWeight: "500", lineHeight: 1.4 }}>
+                                💡 {language === 'id' ? 'Klik & geser titik bulat di denah untuk membentuk dinding ruangan!' : 'Click and drag the circular handles on the map to shape walls!'}
+                              </p>
+                              <div style={{ display: "flex", gap: "6px" }}>
+                                <button
+                                  type="button"
+                                  className="edit-btn btn-secondary"
+                                  style={{ flex: 1, fontSize: "11px", padding: "4px" }}
+                                  onClick={handleAddVertex}
+                                  title={language === 'id' ? 'Tambah titik sudut baru' : 'Add new vertex'}
+                                >
+                                  ➕ {language === 'id' ? 'Tambah' : 'Add Point'}
+                                </button>
+                                <button
+                                  type="button"
+                                  className="edit-btn btn-danger"
+                                  style={{ flex: 1, fontSize: "11px", padding: "4px" }}
+                                  onClick={handleRemoveVertex}
+                                  title={language === 'id' ? 'Hapus titik sudut yang dipilih' : 'Remove selected vertex'}
+                                >
+                                  ➖ {language === 'id' ? 'Hapus' : 'Delete'}
+                                </button>
+                                <button
+                                  type="button"
+                                  className="edit-btn btn-secondary"
+                                  style={{ flex: 1, fontSize: "11px", padding: "4px" }}
+                                  onClick={() => handleShapeTypeChange(room.shape_type || 'polygon')}
+                                  title={language === 'id' ? 'Kembalikan titik sudut ke bentuk awal' : 'Reset vertices to default'}
+                                >
+                                  ↺ {language === 'id' ? 'Reset' : 'Reset'}
+                                </button>
+                              </div>
+                            </div>
+                          )}
+                        </div>
+                      )}
+                    </div>
                   </div>
                 );
               })()}
@@ -2018,6 +2389,82 @@ export default function EditPage() {
                   >
                     <div className="template-icon">{preset.icon}</div>
                     <p>{getText(preset.shortName)}</p>
+                  </div>
+                ))}
+              </div>
+
+              <div style={{ margin: "10px 0", borderTop: "1px solid var(--border)" }}></div>
+
+              <h5 style={{ margin: "0 0 10px 0", fontSize: "12px", color: "var(--text-main)", fontWeight: "700" }}>{language === 'id' ? 'Bentuk Khusus (Preset)' : 'Custom Shapes'}</h5>
+              <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(100px, 1fr))", gap: "8px" }}>
+                {[
+                  { id: 'l_shape', name: "Bentuk L", icon: "📐", w: 4, h: 4 },
+                  { id: 'semicircle', name: "1/2 Lingkaran", icon: "🌓", w: 4, h: 3 },
+                  { id: 'circle', name: "Lingkaran", icon: "⚪", w: 4, h: 4 },
+                  { id: 't_shape', name: "Bentuk T", icon: "┳", w: 5, h: 4 },
+                  { id: 'trapezoid', name: "Serong", icon: "🔷", w: 4, h: 3 },
+                  { id: 'polygon', name: "Bebas", icon: "✏️", w: 4, h: 4 }
+                ].map(preset => (
+                  <div
+                    key={preset.id}
+                    draggable
+                    className="template-card template-room"
+                    title={preset.name}
+                    style={{ touchAction: 'none' }}
+                    onDragStart={(e) => {
+                      e.dataTransfer.setData("text/plain", JSON.stringify({
+                        type: "new-room",
+                        shapeType: preset.id,
+                        defaultName: preset.name,
+                        endpoints: ['bottom'],
+                        defaultGridWidth: preset.w,
+                        defaultGridHeight: preset.h
+                      }));
+                    }}
+                    onTouchStart={() => {
+                      touchDragDataRef.current = {
+                        type: "new-room",
+                        shapeType: preset.id,
+                        defaultName: preset.name,
+                        endpoints: ['bottom'],
+                        defaultGridWidth: preset.w,
+                        defaultGridHeight: preset.h
+                      };
+                    }}
+                    onTouchEnd={(e) => {
+                      if (!touchDragDataRef.current) return;
+                      const touch = e.changedTouches[0];
+                      const target = document.elementFromPoint(touch.clientX, touch.clientY);
+                      const mapContainer = mapRef.current;
+                      if (mapContainer && mapContainer.contains(target)) {
+                        const mapRect = mapContainer.getBoundingClientRect();
+                        const clientX = touch.clientX - mapRect.left;
+                        const clientY = touch.clientY - mapRect.top;
+                        processDrop(clientX, clientY, touchDragDataRef.current);
+                      }
+                      touchDragDataRef.current = null;
+                    }}
+                    onClick={() => {
+                      const center = getViewportCenter();
+                      const newId = generateNextRoomId();
+                      const w = GRID_SIZE * preset.w;
+                      const h = GRID_SIZE * preset.h;
+                      const pts = getPresetPoints(preset.id, w, h, GRID_SIZE);
+                      const newElements = [...placedElements, {
+                        id: newId, type: 'room', floor: activeEditFloor, building: activeEditBuilding,
+                        x: center.x, y: center.y, width: w, height: h,
+                        name: preset.name, fill: "#e0e0e0", stroke: "#9e9e9e",
+                        endpoints: ['bottom'],
+                        shape_type: preset.id,
+                        points: pts
+                      }];
+                      setPlacedElements(newElements);
+                      saveHistory(newElements);
+                      setSelectedIds([newId]);
+                    }}
+                  >
+                    <div className="template-icon">{preset.icon}</div>
+                    <p>{preset.name}</p>
                   </div>
                 ))}
               </div>
