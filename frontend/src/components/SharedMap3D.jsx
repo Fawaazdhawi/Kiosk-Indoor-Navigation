@@ -727,20 +727,55 @@ export default function SharedMap3D({
     rightFoot.castShadow = true;
     charRoot.add(rightFoot);
 
-    // Waving Arm (pivot di bahu kanan)
-    const armGroup = new THREE.Group();
-    armGroup.position.set(5.5, 14, 0);
-    const armGeo = new THREE.CylinderGeometry(1.2, 1.2, 7, 12);
-    armGeo.translate(0, 3.5, 0);
+    // Left & Right Arms (Lengan Kiri & Kanan dengan Sleeve & Tangan)
     const armMat = new THREE.MeshStandardMaterial({
       color: isDarkMode ? 0xffebd6 : 0xec9d7e,
       roughness: 0.4,
       emissive: new THREE.Color(isDarkMode ? 0x442211 : 0x000000),
       emissiveIntensity: isDarkMode ? 0.2 : 0,
     });
-    const armMesh = new THREE.Mesh(armGeo, armMat);
-    armGroup.add(armMesh);
-    charRoot.add(armGroup);
+
+    // Bagian lengan atas / sleeve (mengikuti bahan kaos torso)
+    const sleeveGeo = new THREE.CylinderGeometry(1.35, 1.35, 2.5, 12);
+    sleeveGeo.translate(0, -1.25, 0);
+
+    // Lengan bawah (kulit)
+    const armGeo = new THREE.CylinderGeometry(1.1, 1.0, 4.2, 12);
+    armGeo.translate(0, -4.3, 0);
+
+    // Telapak / tangan bulat
+    const handGeo = new THREE.SphereGeometry(1.2, 12, 12);
+    handGeo.translate(0, -6.6, 0);
+
+    // Lengan Kiri
+    const leftArmGroup = new THREE.Group();
+    leftArmGroup.position.set(-5.3, 14, 0);
+    leftArmGroup.rotation.z = -0.15;
+    const leftSleeve = new THREE.Mesh(sleeveGeo, torsoMat);
+    leftSleeve.castShadow = true;
+    leftArmGroup.add(leftSleeve);
+    const leftArmMesh = new THREE.Mesh(armGeo, armMat);
+    leftArmMesh.castShadow = true;
+    leftArmGroup.add(leftArmMesh);
+    const leftHandMesh = new THREE.Mesh(handGeo, armMat);
+    leftHandMesh.castShadow = true;
+    leftArmGroup.add(leftHandMesh);
+    charRoot.add(leftArmGroup);
+
+    // Lengan Kanan
+    const rightArmGroup = new THREE.Group();
+    rightArmGroup.position.set(5.3, 14, 0);
+    rightArmGroup.rotation.z = 0.15;
+    const rightSleeve = new THREE.Mesh(sleeveGeo, torsoMat);
+    rightSleeve.castShadow = true;
+    rightArmGroup.add(rightSleeve);
+    const rightArmMesh = new THREE.Mesh(armGeo, armMat);
+    rightArmMesh.castShadow = true;
+    rightArmGroup.add(rightArmMesh);
+    const rightHandMesh = new THREE.Mesh(handGeo, armMat);
+    rightHandMesh.castShadow = true;
+    rightArmGroup.add(rightHandMesh);
+    charRoot.add(rightArmGroup);
 
     // Pulsing Ground Ring Beacon
     const ringGeo = new THREE.RingGeometry(8, 10.5, 32);
@@ -760,7 +795,9 @@ export default function SharedMap3D({
       root: charRoot,
       leftFoot,
       rightFoot,
-      armGroup,
+      leftArmGroup,
+      rightArmGroup,
+      armGroup: rightArmGroup,
       ring,
     };
     avatarGroup.visible = false;
@@ -784,10 +821,26 @@ export default function SharedMap3D({
       const phase = animPhaseRef.current;
       const pts = activeStepPathPointsRef.current;
       const totalLen = pts.length >= 4 ? getTotalPathLength(pts) : 0;
-      const { root, leftFoot: lf, rightFoot: rf, armGroup: ag } = avatarPartsRef.current;
+      const {
+        root,
+        leftFoot: lf,
+        rightFoot: rf,
+        leftArmGroup: lag,
+        rightArmGroup: rag,
+      } = avatarPartsRef.current;
 
-      if (phase === "waving" && ag) {
-        ag.rotation.z = Math.sin(time * 0.008) * 0.4 - 0.4;
+      if (phase === "waving") {
+        if (rag) {
+          const wave = Math.sin(time * 0.008) * 0.35;
+          rag.rotation.x = 0.2;
+          rag.rotation.y = 0;
+          rag.rotation.z = 2.4 + wave;
+        }
+        if (lag) {
+          lag.rotation.x = 0;
+          lag.rotation.y = 0;
+          lag.rotation.z = -0.15 + Math.sin(time * 0.003) * 0.03;
+        }
         if (lf && rf) {
           lf.position.z = 0;
           rf.position.z = 0;
@@ -819,13 +872,22 @@ export default function SharedMap3D({
         const rad = (-angle * Math.PI) / 180 + Math.PI / 2;
         root.rotation.y = rad;
 
-        // Ayunan Kaki
+        // Ayunan Kaki & Tangan Selaras (Gait Walk Animation)
         if (lf && rf) {
           const swing = isMoving ? Math.sin(time * 0.012) * 3 : 0;
           lf.position.z = swing;
           rf.position.z = -swing;
         }
-        if (ag) ag.rotation.z = 0;
+        if (rag && lag) {
+          const armSwing = isMoving ? Math.sin(time * 0.012) * 0.45 : 0;
+          rag.rotation.x = -armSwing;
+          rag.rotation.y = 0;
+          rag.rotation.z = 0.15;
+
+          lag.rotation.x = armSwing;
+          lag.rotation.y = 0;
+          lag.rotation.z = -0.15;
+        }
 
         // Smooth Camera Follow jika diaktifkan
         if (isFollowingAvatarRef.current && isMoving) {
@@ -851,6 +913,28 @@ export default function SharedMap3D({
         let diff = rotateToAngleRef.current - rotateFromAngleRef.current;
         diff = ((diff + Math.PI) % (Math.PI * 2)) - Math.PI;
         root.rotation.y = rotateFromAngleRef.current + diff * ease;
+
+        if (rag) {
+          rag.rotation.x = 0;
+          rag.rotation.z = 0.15;
+        }
+        if (lag) {
+          lag.rotation.x = 0;
+          lag.rotation.z = -0.15;
+        }
+        if (lf && rf) {
+          lf.position.z = 0;
+          rf.position.z = 0;
+        }
+      } else {
+        if (rag) {
+          rag.rotation.x = 0;
+          rag.rotation.z = 0.15;
+        }
+        if (lag) {
+          lag.rotation.x = 0;
+          lag.rotation.z = -0.15;
+        }
       }
 
       renderer.render(scene, camera);

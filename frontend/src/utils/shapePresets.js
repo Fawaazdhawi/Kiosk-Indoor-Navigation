@@ -6,11 +6,10 @@
 
 export const SHAPE_TYPES = [
   { id: 'rect', label: 'Kotak', icon: '⬛', desc: 'Persegi panjang standar' },
-  { id: 'l_shape', label: 'Bentuk L', icon: '📐', desc: 'Ruangan sudut menyiku' },
-  { id: 'semicircle', label: '1/2 Lingkaran', icon: '🌓', desc: 'Panggung / kubah lengkung' },
   { id: 'circle', label: 'Lingkaran', icon: '⚪', desc: 'Atrium / booth bulat' },
+  { id: 'semicircle', label: '1/2 Lingkaran', icon: '🌓', desc: 'Panggung / kubah lengkung' },
   { id: 't_shape', label: 'Bentuk T', icon: '┳', desc: 'Ruangan bersayap' },
-  { id: 'trapezoid', label: 'Serong', icon: '🔷', desc: 'Dinding miring / trapesium' },
+  { id: 'l_shape', label: 'Bentuk L', icon: '📐', desc: 'Ruangan sudut menyiku' },
   { id: 'polygon', label: 'Bebas', icon: '✏️', desc: 'Poligon kustom titik bebas' },
 ];
 

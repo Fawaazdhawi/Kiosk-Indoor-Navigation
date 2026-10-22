@@ -2398,19 +2398,24 @@ export default function EditPage() {
               <h5 style={{ margin: "0 0 10px 0", fontSize: "12px", color: "var(--text-main)", fontWeight: "700" }}>{language === 'id' ? 'Bentuk Khusus (Preset)' : 'Custom Shapes'}</h5>
               <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(100px, 1fr))", gap: "8px" }}>
                 {[
-                  { id: 'l_shape', name: "Bentuk L", icon: "📐", w: 4, h: 4 },
-                  { id: 'semicircle', name: "1/2 Lingkaran", icon: "🌓", w: 4, h: 3 },
-                  { id: 'circle', name: "Lingkaran", icon: "⚪", w: 4, h: 4 },
-                  { id: 't_shape', name: "Bentuk T", icon: "┳", w: 5, h: 4 },
-                  { id: 'trapezoid', name: "Serong", icon: "🔷", w: 4, h: 3 },
-                  { id: 'polygon', name: "Bebas", icon: "✏️", w: 4, h: 4 }
+                  { id: 'circle', name: "Lingkaran", w: 4, h: 4 },
+                  { id: 'semicircle', name: "1/2 Lingkaran", w: 4, h: 3 },
+                  { id: 't_shape', name: "Bentuk T", w: 5, h: 4 },
+                  { id: 'l_shape', name: "Bentuk L", w: 4, h: 4 },
+                  { id: 'polygon', name: "Bebas", w: 4, h: 4 }
                 ].map(preset => (
                   <div
                     key={preset.id}
                     draggable
                     className="template-card template-room"
                     title={preset.name}
-                    style={{ touchAction: 'none' }}
+                    style={{
+                      touchAction: 'none',
+                      justifyContent: 'center',
+                      textAlign: 'center',
+                      padding: '8px 6px',
+                      minHeight: '36px'
+                    }}
                     onDragStart={(e) => {
                       e.dataTransfer.setData("text/plain", JSON.stringify({
                         type: "new-room",
@@ -2463,8 +2468,7 @@ export default function EditPage() {
                       setSelectedIds([newId]);
                     }}
                   >
-                    <div className="template-icon">{preset.icon}</div>
-                    <p>{preset.name}</p>
+                    <p style={{ margin: 0, textAlign: 'center', width: '100%', fontSize: '11px', fontWeight: 600 }}>{preset.name}</p>
                   </div>
                 ))}
               </div>
