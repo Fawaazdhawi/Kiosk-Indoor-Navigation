@@ -50,8 +50,7 @@ def seed_mall_data():
                 floor="Ground Floor",
                 grid_x=6, grid_y=6, grid_width=8, grid_height=6,
                 endpoints=["bottom"],
-                description="Menyediakan kopi arabika premium, espresso, pastry hangat, kue, dan area nongkrong nyaman dengan Wi-Fi kencang.",
-                keywords=["kopi", "espresso", "latte", "frappuccino", "croissant", "cafe", "nongkrong", "wifi", "starbucks", "sarapan", "roti"]
+                keywords=["starbucks", "kopi", "coffee", "cafe", "kafe", "haus", "minum", "minuman", "ngopi", "latte", "espresso", "frappuccino", "croissant", "nongkrong", "wifi"]
             ),
             Tenant(
                 id="STORE_ZARA_GF",
@@ -137,7 +136,7 @@ def seed_mall_data():
                 grid_x=6, grid_y=18, grid_width=9, grid_height=7,
                 endpoints=["right"],
                 description="Toko buku terlengkap, novel bestseller, komik manga, alat tulis kantor, tas ransel, dan perlengkapan seni.",
-                keywords=["gramedia", "buku", "novel", "komik", "alat tulis", "pensil", "pulpen", "buku pelajaran", "tas", "majalah"]
+                keywords=["gramedia", "buku", "novel", "komik", "alat tulis", "stationery", "pensil", "pulpen", "majalah", "baca"]
             ),
             Tenant(
                 id="STORE_CHATIME_L1",
@@ -151,7 +150,7 @@ def seed_mall_data():
                 grid_x=20, grid_y=18, grid_width=6, grid_height=5,
                 endpoints=["left"],
                 description="Minuman teh susu boba taiwan, pearl milk tea, hazelnut chocolate, dan aneka minuman segar pelepas dahaga.",
-                keywords=["chatime", "boba", "milk tea", "teh", "minuman manis", "es teh", "boba drink", "haus", "minuman segar"]
+                keywords=["chatime", "boba", "milk tea", "teh", "haus", "minum", "minuman", "es teh", "minuman manis", "segar"]
             ),
 
             # === LANTAI 2 (L2) ===
@@ -188,28 +187,28 @@ def seed_mall_data():
                 name="Marugame Udon",
                 name_en="Marugame Udon",
                 category="F&B",
-                sub_category="Japanese Udon & Tempura",
+                sub_category="Japanese Restaurant & Udon",
                 unit_number="L2-03",
                 building="Mall Utama",
                 floor="Lantai 2",
                 grid_x=6, grid_y=20, grid_width=8, grid_height=6,
                 endpoints=["right"],
                 description="Restoran mie udon autentik Jepang, kuah kake dashi, beef niku udon, aneka gorengan tempura gurih dan renyah.",
-                keywords=["marugame", "udon", "tempura", "mie jepang", "makan siang", "makanan jepang", "beef udon", "kuliner", "kenyang"]
+                keywords=["marugame", "udon", "tempura", "mie", "makan", "lapar", "restoran", "makanan", "kuliner", "makan siang", "lunch", "dinner", "kenyang"]
             ),
             Tenant(
                 id="STORE_SUSHITEI_L2",
                 name="Sushi Tei",
                 name_en="Sushi Tei Restaurant",
                 category="F&B",
-                sub_category="Japanese Sushi Restaurant",
+                sub_category="Japanese Dining & Sushi",
                 unit_number="L2-04",
                 building="Mall Utama",
                 floor="Lantai 2",
                 grid_x=18, grid_y=20, grid_width=8, grid_height=6,
                 endpoints=["left"],
                 description="Restoran sushi ternama dengan conveyor belt, salmon sashimi segar, sushi roll lezat, ramen, dan menu bento keluarga.",
-                keywords=["sushi", "sushi tei", "salmon", "sashimi", "ramen", "makanan jepang", "restoran", "makan malam", "seafood"]
+                keywords=["sushi", "sushi tei", "salmon", "sashimi", "ramen", "restoran", "makan", "lapar", "makanan", "kuliner", "makan malam", "lunch", "dinner", "seafood"]
             )
         ]
         db.add_all(tenants_data)

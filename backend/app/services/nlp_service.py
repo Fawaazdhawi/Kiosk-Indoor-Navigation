@@ -273,13 +273,103 @@ def cari_target_ruangan(input_pengunjung, start_node_id=None, language="id", cur
     else:
         exact_matches = intersection_matches
 
+    # 1. Pemetaan Kebutuhan / Intent Pengunjung Mall (misal: lapar, haus, baju, nonton, buku, dll)
     if not exact_matches and input_bersih:
-        typo_matches = process.extract(input_bersih, kumpulan_kata_kunci, scorer=fuzz.WRatio, limit=1, score_cutoff=70)
-        if not typo_matches:
-            typo_matches = process.extract(input_lower, kumpulan_kata_kunci, scorer=fuzz.WRatio, limit=1, score_cutoff=70)
-            
-        if typo_matches:
-            exact_matches = mapping_kunci_ke_id.get(typo_matches[0][0], [])
+        INTENT_MAPPINGS = {
+            "food": {
+                "keywords": ["lapar", "laper", "makan", "makanan", "kuliner", "resto", "restoran", "food", "foodcourt", "food court", "kenyang", "lunch", "dinner", "sarapan", "jajan", "tempat makan", "cari makan", "mie", "nasi", "udon", "sushi"],
+                "categories": ["restaurant", "dining"],
+                "fallback_keywords": ["udon", "sushi", "marugame", "sushitei", "restoran", "makanan", "kuliner", "makan", "lapar"]
+            },
+            "beverage": {
+                "keywords": ["haus", "minum", "minuman", "kopi", "ngopi", "cafe", "kafe", "boba", "teh", "jus", "coffee", "tea"],
+                "categories": ["beverage", "cafe", "coffee"],
+                "fallback_keywords": ["starbucks", "chatime", "chagee", "koi", "kopi", "teh", "boba", "minum", "minuman", "haus"]
+            },
+            "books": {
+                "keywords": ["buku", "novel", "komik", "alat tulis", "pensil", "pulpen", "baca", "atk", "majalah", "stationery", "buku pelajaran"],
+                "categories": ["books & stationery", "stationery", "books"],
+                "fallback_keywords": ["gramedia", "buku"]
+            },
+            "fashion": {
+                "keywords": ["baju", "celana", "pakaian", "fashion", "kaos", "dress", "jaket", "hoodie", "jeans", "busana", "sepatu", "tas"],
+                "categories": ["fashion", "apparel", "clothing"],
+                "fallback_keywords": ["uniqlo", "zara", "h&m", "hnm"]
+            },
+            "gadget": {
+                "keywords": ["hp", "handphone", "gadget", "laptop", "iphone", "apple", "macbook", "charger", "elektronik", "ipad", "airpods"],
+                "categories": ["gadget", "electronics"],
+                "fallback_keywords": ["ibox", "apple"]
+            },
+            "beauty": {
+                "keywords": ["makeup", "skincare", "parfum", "lipstik", "bedak", "kosmetik", "kecantikan", "perawatan"],
+                "categories": ["beauty & health", "beauty", "cosmetics"],
+                "fallback_keywords": ["sephora"]
+            },
+            "cinema": {
+                "keywords": ["nonton", "bioskop", "cinema", "film", "movie", "popcorn", "tiket nonton"],
+                "categories": ["entertainment"],
+                "fallback_keywords": ["xxi", "cinema"]
+            },
+            "arcade": {
+                "keywords": ["main", "game", "timezone", "arcade", "anak-anak", "boneka", "mesin capit"],
+                "categories": ["entertainment"],
+                "fallback_keywords": ["funworld", "timezone"]
+            },
+            "toilet": {
+                "keywords": ["toilet", "wc", "restroom", "pipis", "kencing", "kamar kecil", "buang air", "kebelet"],
+                "categories": ["facility"],
+                "fallback_keywords": ["toilet", "restroom", "wc"]
+            },
+            "musholla": {
+                "keywords": ["sholat", "solat", "musholla", "mushola", "masjid", "ibadah", "wudhu", "sembahyang"],
+                "categories": ["facility"],
+                "fallback_keywords": ["musholla", "mushola"]
+            },
+            "atm": {
+                "keywords": ["atm", "uang", "ambil uang", "tarik tunai", "duit", "bank"],
+                "categories": ["facility"],
+                "fallback_keywords": ["atm"]
+            }
+        }
+
+        matched_intent = None
+        matched_intent_key = None
+        for intent_key, intent_data in INTENT_MAPPINGS.items():
+            if any(k in input_bersih.split() or k == input_bersih for k in intent_data["keywords"]):
+                matched_intent = intent_data
+                matched_intent_key = intent_key
+                break
+
+        if matched_intent:
+            intent_candidates = []
+            for r_id, room in waypoint_graph.RUANGAN_GRID.items():
+                r_cat = (room.get("category") or "").lower()
+                r_name = (room.get("name") or "").lower()
+                r_kws = " ".join(room.get("keywords") or []).lower()
+                
+                if matched_intent_key == "food":
+                    # Hindari kedai minuman/kopi jika pengunjung lapar / cari makanan
+                    if any(bw in r_name for bw in ["starbucks", "chatime", "chagee", "koi"]):
+                        continue
+
+                # Cek kategori atau kata kunci yang cocok
+                cat_match = any(c in r_cat for c in matched_intent["categories"])
+                kw_match = any(fk in r_name or fk in r_kws for fk in matched_intent["fallback_keywords"])
+                
+                if cat_match or kw_match:
+                    intent_candidates.append(r_id)
+
+            if intent_candidates:
+                exact_matches = intent_candidates
+
+    # 2. Koreksi Typo Cerdas (Hanya jika panjang kata mirip, cegah 'lapar' mencocokkan 'buku pelajaran')
+    if not exact_matches and input_bersih:
+        candidates = [k for k in kumpulan_kata_kunci if abs(len(k) - len(input_bersih)) <= 2 and len(k) >= 3]
+        if candidates:
+            typo_matches = process.extract(input_bersih, candidates, scorer=fuzz.ratio, limit=1, score_cutoff=82)
+            if typo_matches:
+                exact_matches = mapping_kunci_ke_id.get(typo_matches[0][0], [])
 
     if exact_matches:
         if len(exact_matches) == 1:
@@ -445,7 +535,7 @@ def cari_target_ruangan(input_pengunjung, start_node_id=None, language="id", cur
     max_score = np.max(skor_kemiripan)
     terbaik_id = None
     
-    if max_score >= 0.35:
+    if max_score >= 0.45:
         kandidat_indeks = np.where(skor_kemiripan >= max_score - 0.01)[0]
         
         if len(kandidat_indeks) == 1:

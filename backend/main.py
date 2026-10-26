@@ -1,4 +1,4 @@
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI, HTTPException, File, UploadFile
 from fastapi.responses import JSONResponse
 from pydantic import BaseModel
 from typing import List, Optional, Dict, Any
@@ -442,16 +442,29 @@ def dapatkan_rute(request: RequestRute):
     # 1. Coba pencarian langsung terlebih dahulu (instan & akurat)
     hasil_nlp = cari_target_ruangan(query_asli, request.start_node_id, request.language, request.current_floor)
 
-    # 2. Jika belum cocok atau query berupa kalimat panjang, panggil Qwen untuk mengekstrak intent
-    if (hasil_nlp.get("status") == "error" or hasil_nlp.get("confidence_score", 0) < 0.5) and len(query_asli.split()) > 2:
+    # 2. Jika belum cocok atau skor keyakinan rendah (< 0.85), panggil AI Lokal Ollama Qwen
+    if hasil_nlp.get("status") == "error" or hasil_nlp.get("confidence_score", 0) < 0.85:
         try:
             import ollama
             ollama_client = ollama.Client(host=os.getenv("OLLAMA_BASE_URL", "http://localhost:11434"))
             model_name = os.getenv("OLLAMA_MODEL", "qwen2.5:7b")
             
-            prompt_qwen = f"""Anda adalah AI Pemandu Mall. Pengunjung mencari: "{query_asli}".
-Ekstrak nama toko, brand, fasilitas, atau gedung yang dimaksud (maksimal 3 kata).
-Balas HANYA teks nama toko/fasilitas/gedungnya saja (contoh: "Starbucks" atau "XXI" atau "Toilet" atau "Galaxy Mall 2"):"""
+            daftar_toko = []
+            for r_id, r in waypoint_graph.RUANGAN_GRID.items():
+                nama = r.get("name", "")
+                cat = r.get("category", "")
+                tipe = r.get("type", "")
+                if nama and nama != "Tanpa Nama" and tipe != "kiosk":
+                    daftar_toko.append(f"{nama} ({cat})" if cat else nama)
+
+            toko_str = ", ".join(daftar_toko[:25])
+            prompt_qwen = f"""Anda adalah AI Pemandu Pengunjung Mall yang cerdas.
+Pengunjung mall mencari: "{query_asli}".
+Pilihan toko/fasilitas yang tersedia di mall:
+[{toko_str}]
+
+Tentukan SATU toko atau fasilitas yang paling relevan dengan kebutuhan pengunjung (contoh: lapar -> restoran makanan, haus -> cafe/minuman, baju -> fashion, hp/laptop -> gadget, buku -> toko buku, nonton -> bioskop).
+Jawab HANYA DENGAN SATU NAMA TOKO yang ada di daftar di atas (tanpa kategori, tanpa tanda baca tambahan)."""
 
             res = ollama_client.chat(
                 model=model_name,
@@ -459,7 +472,8 @@ Balas HANYA teks nama toko/fasilitas/gedungnya saja (contoh: "Starbucks" atau "X
                 options={"temperature": 0.1}
             )
             extracted = res["message"]["content"].strip().strip('"').strip("'")
-            if extracted and len(extracted) < 40 and extracted.lower() != query_asli.lower():
+            extracted = extracted.split("(")[0].strip()
+            if extracted and len(extracted) < 50:
                 logger.info(f"[QWEN 2.5] Ekstraksi intent AI: '{query_asli}' -> '{extracted}'")
                 hasil_ai = cari_target_ruangan(extracted, request.start_node_id, request.language, request.current_floor)
                 if hasil_ai.get("status") != "error":
@@ -936,5 +950,25 @@ Format jawaban Anda WAJIB HANYA berupa JSON raw valid (tanpa markdown blok ```js
         "jalur_koordinat": hasil_rute.get("jalur_grid", []),
         "langkah_navigasi": hasil_rute.get("teks_navigasi", [])
     }
+
+
+@app.post("/api/stt")
+async def speech_to_text(file: UploadFile = File(...), language: str = "id"):
+    """
+    Endpoint Speech-to-Text lokal menggunakan Faster-Whisper.
+    Menerima file rekaman audio dari frontend (WebM, WAV, OGG, dll) dan mengembalikan transkrip teks.
+    """
+    try:
+        contents = await file.read()
+        if not contents or len(contents) == 0:
+            return JSONResponse(status_code=400, content={"status": "error", "message": "File audio kosong.", "text": ""})
+
+        from app.services.stt_service import transcribe_audio_file
+        hasil = transcribe_audio_file(contents, filename=file.filename or "audio.webm", language=language)
+        return hasil
+    except Exception as e:
+        logger.error(f"[STT API] Error saat memproses STT: {e}")
+        return JSONResponse(status_code=500, content={"status": "error", "message": str(e), "text": ""})
+
 
 

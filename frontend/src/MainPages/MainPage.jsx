@@ -135,6 +135,7 @@ export default function App() {
   const [countdownValue, setCountdownValue] = useState(10);
   const [serverIp, setServerIp] = useState("");
   const [isListening, setIsListening] = useState(false);
+  const [isProcessingVoice, setIsProcessingVoice] = useState(false);
   const [isSessionExpired, setIsSessionExpired] = useState(false);
 
 
@@ -154,80 +155,124 @@ export default function App() {
   }, [floor, building]);
 
 
-  const startListening = () => {
+  const stopListening = useCallback(() => {
+    if (recordTimeoutRef.current) {
+      clearTimeout(recordTimeoutRef.current);
+      recordTimeoutRef.current = null;
+    }
+    if (mediaRecorderRef.current && mediaRecorderRef.current.state === "recording") {
+      try {
+        mediaRecorderRef.current.stop();
+      } catch (err) {
+        console.error("Gagal stop recorder:", err);
+      }
+    }
+    if (streamRef.current) {
+      try {
+        streamRef.current.getTracks().forEach(track => track.stop());
+      } catch {}
+      streamRef.current = null;
+    }
+    setIsListening(false);
+  }, []);
+
+  const startListening = async () => {
     if (isListening) {
-      if (recognitionRef.current) recognitionRef.current.stop();
+      stopListening();
       return;
     }
 
-    if (recognitionRef.current) {
-      try { recognitionRef.current.start(); } catch { /* Ignore start errors */ }
-    }
-  };
-
-  useEffect(() => {
-    const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
-    if (!SpeechRecognition) {
+    if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
       showAlert(language === 'en' ? "Microphone not supported in this browser." : "Mikrofon tidak didukung di browser ini.");
       return;
     }
 
-    const recognition = new SpeechRecognition();
-    recognitionRef.current = recognition;
-    recognition.lang = language === 'en' ? 'en-US' : 'id-ID';
-    recognition.interimResults = true;
-    recognition.continuous = true;
-    recognition.maxAlternatives = 1;
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      streamRef.current = stream;
 
-    recognition.onstart = () => {
-      setIsListening(true);
-      setSearch("");
-      latestTranscriptRef.current = "";
-      if (silenceTimeoutRef.current) clearTimeout(silenceTimeoutRef.current);
-    };
-
-    recognition.onresult = (event) => {
-      let transcript = "";
-      for (let i = 0; i < event.results.length; i++) {
-        transcript += event.results[i][0].transcript;
+      let mimeType = 'audio/webm';
+      if (!MediaRecorder.isTypeSupported('audio/webm')) {
+        if (MediaRecorder.isTypeSupported('audio/ogg')) mimeType = 'audio/ogg';
+        else if (MediaRecorder.isTypeSupported('audio/mp4')) mimeType = 'audio/mp4';
+        else mimeType = '';
       }
 
-      latestTranscriptRef.current = transcript;
-      lastUpdatedByVoiceRef.current = true;
-      setSearch(transcript);
+      const options = mimeType ? { mimeType } : {};
+      const mediaRecorder = new MediaRecorder(stream, options);
+      mediaRecorderRef.current = mediaRecorder;
+      audioChunksRef.current = [];
 
-      if (silenceTimeoutRef.current) clearTimeout(silenceTimeoutRef.current);
-
-      silenceTimeoutRef.current = setTimeout(() => {
-        silenceTimeoutRef.current = null;
-        recognition.stop();
-        if (latestTranscriptRef.current.trim()) {
-          executeSearch(location, latestTranscriptRef.current);
-          latestTranscriptRef.current = "";
+      mediaRecorder.ondataavailable = (event) => {
+        if (event.data && event.data.size > 0) {
+          audioChunksRef.current.push(event.data);
         }
-      }, 3000);
-    };
+      };
 
-    recognition.onerror = (event) => {
-      console.error("Speech recognition error", event.error);
-      setIsListening(false);
-      if (silenceTimeoutRef.current) clearTimeout(silenceTimeoutRef.current);
-      latestTranscriptRef.current = "";
-    };
+      mediaRecorder.onstart = () => {
+        setIsListening(true);
+        setSearch("");
+        // Beri batas waktu otomatis 6 detik jika user lupa tap selesai
+        recordTimeoutRef.current = setTimeout(() => {
+          stopListening();
+        }, 6000);
+      };
 
-    recognition.onend = () => {
-      setIsListening(false);
-      if (silenceTimeoutRef.current) {
-        clearTimeout(silenceTimeoutRef.current);
-        silenceTimeoutRef.current = null;
-        if (latestTranscriptRef.current.trim()) {
-          executeSearch(location, latestTranscriptRef.current);
-          latestTranscriptRef.current = "";
+      mediaRecorder.onstop = async () => {
+        setIsListening(false);
+        if (recordTimeoutRef.current) {
+          clearTimeout(recordTimeoutRef.current);
+          recordTimeoutRef.current = null;
         }
-      }
-    };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [language, location]);
+
+        const tracks = stream.getTracks();
+        tracks.forEach(track => track.stop());
+
+        const audioBlob = new Blob(audioChunksRef.current, { type: mimeType || 'audio/webm' });
+        audioChunksRef.current = [];
+
+        // Abaikan jika rekaman kosong atau terlalu singkat (< 1.5 KB)
+        if (audioBlob.size < 1500) {
+          return;
+        }
+
+        setIsProcessingVoice(true);
+        try {
+          const formData = new FormData();
+          formData.append("file", audioBlob, "voice_input.webm");
+          formData.append("language", language === "en" ? "en" : "id");
+
+          const response = await fetch("/api/stt", {
+            method: "POST",
+            body: formData
+          });
+
+          const data = await response.json();
+          if (data.status === "success" && data.text && data.text.trim()) {
+            const recognizedText = data.text.trim();
+            setSearch(recognizedText);
+            lastUpdatedByVoiceRef.current = true;
+            if (executeSearchRef.current) {
+              executeSearchRef.current(location, recognizedText);
+            }
+          } else {
+            showAlert(language === "en" ? "Voice not clearly recognized. Please try again." : "Suara tidak terdengar jelas. Silakan coba lagi.");
+          }
+        } catch (err) {
+          console.error("[Faster-Whisper STT] Error:", err);
+          showAlert(language === "en" ? "Failed to process voice with local Whisper." : "Gagal memproses suara dengan Whisper lokal.");
+        } finally {
+          setIsProcessingVoice(false);
+        }
+      };
+
+      mediaRecorder.start();
+    } catch (err) {
+      console.error("[STT] Akses mikrofon ditolak:", err);
+      showAlert(language === 'en' ? "Please allow microphone access." : "Izin mikrofon diperlukan untuk fitur ini.");
+      setIsListening(false);
+    }
+  };
 
   const getText = (key) => {
     const dict = {
@@ -489,9 +534,11 @@ export default function App() {
   const isMountedRef = useRef(true);
   const resetTimeoutRef = useRef(null);
   const countdownIntervalRef = useRef(null);
-  const silenceTimeoutRef = useRef(null);
-  const latestTranscriptRef = useRef("");
-  const recognitionRef = useRef(null);
+  const mediaRecorderRef = useRef(null);
+  const audioChunksRef = useRef([]);
+  const streamRef = useRef(null);
+  const recordTimeoutRef = useRef(null);
+  const executeSearchRef = useRef(null);
   const searchInputRef = useRef(null);
   const searchWrapperRef = useRef(null);
 
@@ -773,6 +820,7 @@ export default function App() {
   };
 
   const executeSearch = async (overrideLocation, overrideTarget, overrideLang, resumeStepIndex = 0) => {
+    executeSearchRef.current = executeSearch;
     const searchLocation = typeof overrideLocation === 'string' ? overrideLocation : location;
     const searchTarget = typeof overrideTarget === 'string' ? overrideTarget : search;
     const currentLang = overrideLang || language;
@@ -960,6 +1008,10 @@ export default function App() {
         break;
     }
   };
+
+  const isNavigating = navigationSteps.length > 0 && !isNavFinished;
+  const hideGuide = isNavigating || (isSearchDropdownOpen && filteredDropdownRooms.length > 0);
+  const hideQuickActions = isNavigating || (isSearchDropdownOpen && filteredDropdownRooms.length > 0) || (Boolean(search.trim()) && !isNavFinished && navigationSteps.length === 0);
 
   if (isSessionExpired) {
     return (
@@ -1303,7 +1355,7 @@ export default function App() {
                         className="search-input route-search"
                         style={{ paddingRight: "48px", width: "100%", color: (search && (isListening || lastUpdatedByVoiceRef.current)) ? "transparent" : "inherit" }}
                         type="search"
-                        placeholder={isListening ? (language === 'en' ? 'Listening...' : 'Mendengarkan...') : getText('search_placeholder')}
+                        placeholder={isListening ? (language === 'en' ? 'Listening... Speak now' : 'Mendengarkan... Silakan bicara') : isProcessingVoice ? (language === 'en' ? 'Processing speech (Whisper)...' : 'Memproses suara (Whisper)...') : getText('search_placeholder')}
                         value={search}
                         onFocus={() => { lastUpdatedByVoiceRef.current = false; setIsSearchDropdownOpen(true); }}
                         onClick={() => setIsSearchDropdownOpen(true)}
@@ -1329,13 +1381,21 @@ export default function App() {
                       )}
                     </form>
 
-                    {search.length > 0 ? (
+                    {isListening ? (
+                      <div className="mic-btn-wrapper" onClick={stopListening} title={language === 'en' ? 'Stop Listening' : 'Berhenti Merekam'} style={{ cursor: 'pointer' }}>
+                        <MicIcon isListening={true} />
+                      </div>
+                    ) : isProcessingVoice ? (
+                      <div className="mic-btn-wrapper" title="Whisper Local Processing" style={{ display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                        <span style={{ display: 'inline-block', width: '16px', height: '16px', border: '2px solid rgba(0,0,0,0.2)', borderTopColor: 'var(--primary, #0284c7)', borderRadius: '50%', animation: 'spin 0.8s linear infinite' }}></span>
+                      </div>
+                    ) : search.length > 0 ? (
                       <div className="mic-btn-wrapper" onClick={() => setSearch("")} title={language === 'en' ? 'Clear' : 'Hapus'}>
                         <span style={{ fontSize: "24px", color: "var(--text-muted)", lineHeight: 1 }}>&times;</span>
                       </div>
                     ) : (
-                      <div className="mic-btn-wrapper" onClick={startListening} title={language === 'en' ? 'Voice Search' : 'Pencarian Suara'}>
-                        <MicIcon isListening={isListening} />
+                      <div className="mic-btn-wrapper" onClick={startListening} title={language === 'en' ? 'Voice Search (Local Whisper)' : 'Pencarian Suara (Whisper Lokal)'}>
+                        <MicIcon isListening={false} />
                       </div>
                     )}
 
@@ -1385,11 +1445,11 @@ export default function App() {
                 is3DMode={is3DMode}
                 hasActiveRoute={navigationSteps.length > 0}
                 onAction={handleQuickTipAction}
-                hidden={isSearchDropdownOpen && filteredDropdownRooms.length > 0}
+                hidden={hideGuide}
               />
 
-              {/* aksi cepat — hanya tampil saat belum ada tujuan dipilih */}
-              <div className={`quick-actions-section${(search.trim() || isSearchDropdownOpen) ? ' quick-actions-hidden' : ''}`}>
+              {/* aksi cepat — disembunyikan saat navigasi berlangsung, muncul kembali saat selesai */}
+              <div className={`quick-actions-section${hideQuickActions ? ' quick-actions-hidden' : ''}`}>
                 <p className="quick-actions-label">
                   <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"></polygon></svg>
                   {language === 'id' ? 'Pencarian Cepat' : 'Quick Searches'}

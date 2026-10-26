@@ -148,6 +148,11 @@
   color: #ff3b3b !important;
 }
 
+@keyframes spin {
+  0% { transform: rotate(0deg); }
+  100% { transform: rotate(360deg); }
+}
+
 /* kotak tujuan dinamis */
 .destination-output-dynamic {
   width: 100%;
@@ -1201,11 +1206,14 @@ body.dark-mode .quick-tips-dot {
 }
 
 .quick-actions-section.quick-actions-hidden {
-  max-height: 0;
-  opacity: 0;
-  pointer-events: none;
-  margin-top: 0;
-  margin-bottom: 0;
+  max-height: 0 !important;
+  opacity: 0 !important;
+  pointer-events: none !important;
+  visibility: hidden !important;
+  margin-top: 0 !important;
+  margin-bottom: 0 !important;
+  padding-top: 0 !important;
+  padding-bottom: 0 !important;
 }
 
 .quick-actions-label {
