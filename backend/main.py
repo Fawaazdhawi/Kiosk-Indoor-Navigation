@@ -619,7 +619,7 @@ def get_map_data():
 def seed_database():
     """Trigger inisialisasi tabel dan seed data mall ke PostgreSQL."""
     from seed_mall import seed_mall_data
-    sukses = seed_mall_data()
+    sukses = seed_mall_data(force=True)
     if sukses:
         muat_data_dari_postgres()
         return {"status": "success", "message": "Database PostgreSQL berhasil di-seed dan denah disinkronkan!"}
@@ -971,4 +971,4 @@ async def speech_to_text(file: UploadFile = File(...), language: str = "id"):
         return JSONResponse(status_code=500, content={"status": "error", "message": str(e), "text": ""})
 
 
-
+

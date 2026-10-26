@@ -82,6 +82,39 @@ def cari_target_ruangan(input_pengunjung, start_node_id=None, language="id", cur
 
     from app.core import state as waypoint_graph
 
+    input_raw = (input_pengunjung or "").strip()
+    input_lower = input_raw.lower()
+
+    # 0. DIRECT ROOM ID MATCH (Kritikal: user mengklik ruangan di denah / dropdown mengirim room.id)
+    if input_raw in waypoint_graph.RUANGAN_GRID:
+        return {
+            "status": "success",
+            "target_id": input_raw,
+            "confidence_score": 1.0,
+            "match_type": "exact_id"
+        }
+    for r_id in waypoint_graph.RUANGAN_GRID:
+        if r_id.lower() == input_lower:
+            return {
+                "status": "success",
+                "target_id": r_id,
+                "confidence_score": 1.0,
+                "match_type": "exact_id"
+            }
+
+    # 0b. EXACT ROOM NAME MATCH (Nama toko/ruangan persis sama baik id maupun en)
+    for r_id, room in waypoint_graph.RUANGAN_GRID.items():
+        name_id = room.get("name", "").strip().lower()
+        name_en = room.get("name_en", "").strip().lower()
+        unit_no = room.get("unit_number", "").strip().lower()
+        if input_lower and (input_lower == name_id or (name_en and input_lower == name_en) or (unit_no and input_lower == unit_no)):
+            return {
+                "status": "success",
+                "target_id": r_id,
+                "confidence_score": 1.0,
+                "match_type": "exact_name"
+            }
+
     input_bersih = bersihkan_teks(input_pengunjung)
     
     if not input_bersih:
@@ -118,35 +151,30 @@ def cari_target_ruangan(input_pengunjung, start_node_id=None, language="id", cur
                         "confidence_score": 1.0
                     }
 
+    # Building heuristic: HANYA jika pengguna secara eksplisit menanyakan gedung/mall
     target_building_match = None
-    # 1. Exact match
+    is_building_query = False
+
+    # 1. Exact building name match (misal user mengetik "Galaxy Mall 3", "Mall Utama")
     for bld in semua_gedung:
-        if teks_cek.lower() == bld.lower():
+        if input_lower == bld.lower() or teks_cek.lower() == bld.lower():
             target_building_match = bld
+            is_building_query = True
             break
 
-    # 2. Numbered building match (e.g. "Galaxy Mall 2", "Mall 2", "GM 2")
-    if not target_building_match:
-        num_q = re.search(r'\d+', teks_cek.lower())
-        if num_q:
+    # 2. Pola eksplisit gedung/mall (misal: "ke GM 3", "gedung 2", "mall 1", "pergi ke galaxy mall 3")
+    if not is_building_query:
+        bld_regex = re.match(r'^(?:ke|arah|pergi ke|menuju)?\s*(?:galaxy\s*mall|gedung\s*gm|gedung|mall|gm)\s*([123a-z])\s*$', input_lower)
+        if bld_regex:
+            bld_num = bld_regex.group(1).lower()
             for bld in semua_gedung:
-                b_lower = bld.lower()
-                num_b = re.search(r'\d+', b_lower)
-                if num_b and num_b.group() == num_q.group():
-                    # Cek kesesuaian kata kunci mall / gedung / gm
-                    if any(w in teks_cek.lower() for w in ["galaxy", "mall", "gedung", "gm"]):
-                        target_building_match = bld
-                        break
+                b_num = re.search(r'\d+', bld)
+                if b_num and b_num.group() == bld_num:
+                    target_building_match = bld
+                    is_building_query = True
+                    break
 
-    # 3. Full building name is substring of query
-    if not target_building_match:
-        for bld in sorted(semua_gedung, key=lambda x: len(x), reverse=True):
-            b_lower = bld.lower()
-            if b_lower in teks_cek.lower():
-                target_building_match = bld
-                break
-
-    if target_building_match:
+    if is_building_query and target_building_match:
         from app.services.a_star_service import get_pintu_gedung
         start_room = waypoint_graph.RUANGAN_GRID.get(start_node_id, {})
         start_bld = start_room.get("building")
@@ -258,11 +286,13 @@ def cari_target_ruangan(input_pengunjung, start_node_id=None, language="id", cur
                     if r_id not in perfect_matches and r_id not in keyword_perfect_matches and r_id not in substring_matches:
                         substring_matches.append(r_id)
         
+        GENERIC_WORDS = {"lapar", "laper", "makan", "makanan", "kuliner", "mau", "ingin", "cari", "tempat", "ke", "di", "beli", "toko", "resto", "restoran"}
         irisan = input_words.intersection(room_words)
         irisan_valid = [w for w in irisan if len(w) >= 3]
         if irisan_valid:
-            if r_id not in perfect_matches and r_id not in substring_matches and r_id not in intersection_matches:
-                intersection_matches.append(r_id)
+            score = sum(1 if w in GENERIC_WORDS else 5 for w in irisan_valid)
+            if r_id not in perfect_matches and r_id not in substring_matches:
+                intersection_matches.append((score, r_id))
 
     if perfect_matches:
         exact_matches = perfect_matches
@@ -270,8 +300,14 @@ def cari_target_ruangan(input_pengunjung, start_node_id=None, language="id", cur
         exact_matches = keyword_perfect_matches
     elif substring_matches:
         exact_matches = substring_matches
+    elif intersection_matches:
+        # Urutkan berdasarkan bobot kata kunci tertinggi (kata spesifik > generik)
+        intersection_matches.sort(key=lambda x: x[0], reverse=True)
+        top_score = intersection_matches[0][0]
+        # Hanya pertahankan kandidat dengan skor kata kunci tertinggi
+        exact_matches = [x[1] for x in intersection_matches if x[0] >= top_score]
     else:
-        exact_matches = intersection_matches
+        exact_matches = []
 
     # 1. Pemetaan Kebutuhan / Intent Pengunjung Mall (misal: lapar, haus, baju, nonton, buku, dll)
     if not exact_matches and input_bersih:
@@ -380,6 +416,7 @@ def cari_target_ruangan(input_pengunjung, start_node_id=None, language="id", cur
                 start_room = waypoint_graph.RUANGAN_GRID.get(start_node_id)
                 if start_room:
                     start_floor = start_room.get("floor", "Lantai 1")
+                    start_bld = start_room.get("building")
                     start_x = start_room.get("x", 0)
                     start_y = start_room.get("y", 0)
                     terbaik_jarak = float('inf')
@@ -388,15 +425,13 @@ def cari_target_ruangan(input_pengunjung, start_node_id=None, language="id", cur
                         m_room = waypoint_graph.RUANGAN_GRID.get(m_id)
                         if not m_room: continue
                         
-                        # Prioritaskan current_floor jika user sedang melihat lantai tertentu.
-                        # Jika tidak, prioritaskan lantai tempat kiosk berada.
                         target_floor = current_floor if current_floor else start_floor
                         floor_penalty = 0 if m_room.get("floor", "Lantai 1") == target_floor else 10000
+                        bld_penalty = 0 if m_room.get("building") == start_bld else 50000
                         
-                        jarak = abs(start_x - m_room.get("x", 0)) + abs(start_y - m_room.get("y", 0)) + floor_penalty
+                        jarak = abs(start_x - m_room.get("x", 0)) + abs(start_y - m_room.get("y", 0)) + floor_penalty + bld_penalty
                         if jarak < terbaik_jarak:
                             terbaik_jarak = jarak
-                            terbaik_id = m_id
                             terbaik_id = m_id
                     return {"status": "success", "target_id": terbaik_id, "confidence_score": 1.0}
             
