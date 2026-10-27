@@ -137,12 +137,14 @@ def cari_pasangan_lift_terbaik(start_node, target_node, curr_floor, target_floor
     def is_vertical_transport_node(r):
         nama = r.get("name", "").lower()
         tipe = r.get("type", "").lower()
-        is_lift = ("lift" in nama or "elevator" in nama or tipe in ("lift", "elevator"))
-        is_stairs = ("tangga" in nama or "stairs" in nama or tipe in ("stairs", "tangga"))
+        fac_type = str(r.get("facility_type", "")).lower()
+        is_lift = ("lift" in nama or "elevator" in nama or tipe in ("lift", "elevator") or fac_type == "elevator")
+        is_stairs = ("tangga" in nama or "stairs" in nama or tipe in ("stairs", "tangga") or fac_type == "stairs")
+        is_escalator = ("eskalator" in nama or "escalator" in nama or tipe in ("eskalator", "escalator") or fac_type == "escalator")
         is_emergency = ("darurat" in nama or "emergency" in nama)
-        return (is_lift or is_stairs) and not is_emergency
+        return (is_lift or is_stairs or is_escalator) and not is_emergency
 
-    # Gabungkan Lift dan Tangga (kecuali darurat) menjadi satu prioritas
+    # Gabungkan Lift, Eskalator, dan Tangga (kecuali darurat) menjadi satu prioritas
     transports_start = [r for r in RUANGAN_GRID.values() if r.get("floor") == curr_floor and r.get("building", "Gedung A") == building and is_vertical_transport_node(r)]
     transports_target = [r for r in RUANGAN_GRID.values() if r.get("floor") == target_floor and r.get("building", "Gedung A") == building and is_vertical_transport_node(r)]
     
@@ -153,7 +155,20 @@ def cari_pasangan_lift_terbaik(start_node, target_node, curr_floor, target_floor
     min_dist = float('inf')
     
     for l1 in transports_start:
-        l2 = min(transports_target, key=lambda l: hitung_manhattan(l1["x"], l1["y"], l["x"], l["y"]))
+        l1_name = l1.get("name", "").lower()
+        is_l1_esc = "eskalator" in l1_name or "escalator" in l1_name or l1.get("facility_type") == "escalator"
+        is_l1_lift = "lift" in l1_name or "elevator" in l1_name or l1.get("facility_type") == "elevator"
+        is_l1_stair = "tangga" in l1_name or "stairs" in l1_name or l1.get("facility_type") == "stairs"
+
+        # Matching candidate in target floor (prefer same type of vertical transport)
+        same_type_targets = [
+            l for l in transports_target
+            if (is_l1_esc and ("eskalator" in l.get("name", "").lower() or "escalator" in l.get("name", "").lower() or l.get("facility_type") == "escalator"))
+            or (is_l1_lift and ("lift" in l.get("name", "").lower() or "elevator" in l.get("name", "").lower() or l.get("facility_type") == "elevator"))
+            or (is_l1_stair and ("tangga" in l.get("name", "").lower() or "stairs" in l.get("name", "").lower() or l.get("facility_type") == "stairs"))
+        ]
+        target_pool = same_type_targets if same_type_targets else transports_target
+        l2 = min(target_pool, key=lambda l: hitung_manhattan(l1["x"], l1["y"], l["x"], l["y"]))
         
         dist1 = hitung_manhattan(start_node["x"], start_node["y"], l1["x"], l1["y"])
         dist2 = hitung_manhattan(l2["x"], l2["y"], target_node["x"], target_node["y"])
@@ -671,12 +686,18 @@ def generate_navigation_text(path, start_id, target_id, language="id", target_na
                 teks_transisi = f"Keluar dari {parent_name}." if language == "id" else f"Exit from {parent_name}."
             else:
                 t_floor = get_translated_floor(p2['floor'], language)
-                is_stairs = ("tangga" in p1.get("name", "").lower() or "stairs" in p1.get("name", "").lower() or p1.get("type") == "stairs" or
-                             "tangga" in p2.get("name", "").lower() or "stairs" in p2.get("name", "").lower() or p2.get("type") == "stairs")
-                last_vertical_transport = "stairs" if is_stairs else "lift"
-                if is_stairs:
+                is_escalator = ("eskalator" in p1.get("name", "").lower() or "escalator" in p1.get("name", "").lower() or p1.get("type") == "escalator" or p1.get("facility_type") == "escalator" or
+                                "eskalator" in p2.get("name", "").lower() or "escalator" in p2.get("name", "").lower() or p2.get("type") == "escalator" or p2.get("facility_type") == "escalator")
+                is_stairs = (("tangga" in p1.get("name", "").lower() or "stairs" in p1.get("name", "").lower() or p1.get("type") == "stairs" or p1.get("facility_type") == "stairs" or
+                              "tangga" in p2.get("name", "").lower() or "stairs" in p2.get("name", "").lower() or p2.get("type") == "stairs" or p2.get("facility_type") == "stairs") and not is_escalator)
+                if is_escalator:
+                    last_vertical_transport = "escalator"
+                    teks_transisi = f"Gunakan eskalator untuk menuju ke {p2['floor']}." if language == "id" else f"Take the escalator to go to {t_floor}."
+                elif is_stairs:
+                    last_vertical_transport = "stairs"
                     teks_transisi = f"Gunakan tangga untuk menuju ke {p2['floor']}." if language == "id" else f"Take the stairs to go to {t_floor}."
                 else:
+                    last_vertical_transport = "lift"
                     teks_transisi = f"Gunakan lift untuk menuju ke {p2['floor']}." if language == "id" else f"Take the lift to go to {t_floor}."
             langkah.append({
                 "teks": teks_transisi,
@@ -754,8 +775,15 @@ def generate_navigation_text(path, start_id, target_id, language="id", target_na
                         intro_en = f"After arriving at {b_name}"
                         prefix = get_directional_prefix(intro_id, intro_en, dir_text, language)
                     else:
-                        v_type_id = "tangga" if last_vertical_transport == "stairs" else "lift"
-                        v_type_en = "stairs" if last_vertical_transport == "stairs" else "lift"
+                        if last_vertical_transport == "escalator":
+                            v_type_id = "eskalator"
+                            v_type_en = "escalator"
+                        elif last_vertical_transport == "stairs":
+                            v_type_id = "tangga"
+                            v_type_en = "stairs"
+                        else:
+                            v_type_id = "lift"
+                            v_type_en = "lift"
                         flr1 = p1['floor']
                         t_floor1 = get_translated_floor(flr1, language)
                         intro_id = f"Setelah keluar dari {v_type_id} di {flr1}"
@@ -841,8 +869,15 @@ def generate_navigation_text(path, start_id, target_id, language="id", target_na
                         if dir_text in ("depan", "forward"): teks_akhir = f"After arriving at {b_name}, walk straight ahead towards {target_name}."
                         else: teks_akhir = f"After arriving at {b_name}, turn {dir_text} and walk straight towards {target_name}."
                 else:
-                    v_type_id = "tangga" if last_vertical_transport == "stairs" else "lift"
-                    v_type_en = "stairs" if last_vertical_transport == "stairs" else "lift"
+                    if last_vertical_transport == "escalator":
+                        v_type_id = "eskalator"
+                        v_type_en = "escalator"
+                    elif last_vertical_transport == "stairs":
+                        v_type_id = "tangga"
+                        v_type_en = "stairs"
+                    else:
+                        v_type_id = "lift"
+                        v_type_en = "lift"
                     flr_target = path[-1]['floor']
                     t_floor_target = get_translated_floor(flr_target, language)
                     if language == "id":

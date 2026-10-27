@@ -3,9 +3,9 @@ import math
 # 0 = Lorong bebas (jalur navigasi).
 # 1 = Tembok / Kotak ruangan (rintangan).
 
-# Peta rumah sakit ukurannya luas, kita siapkan matriks 100x100.
-GRID_WIDTH = 100
-GRID_HEIGHT = 100
+# Peta mall ukurannya luas, kita siapkan matriks 200x120.
+GRID_WIDTH = 200
+GRID_HEIGHT = 120
 GRID_MAP = {}  # Dictionary: { "Lantai 1": [[0...]], "Lantai 2": [[0...]] }.
 
 def get_grid_map(floor, building="Gedung Utama"):

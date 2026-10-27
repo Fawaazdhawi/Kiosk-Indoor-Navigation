@@ -202,6 +202,8 @@ def sinkronisasi_peta(data):
                     "floor": floor,
                     "building": building,
                     "type": item.get("type", "room"),
+                    "category": item.get("category", "") or "",
+                    "unit_number": item.get("unit_number", "") or "",
                     "facility_type": item.get("facility_type", "") or "",
                     "keywords": item.get("keywords", []),
                     "is_connector": item.get("is_connector", False),
@@ -216,6 +218,7 @@ def sinkronisasi_peta(data):
                     temp_grid[grid_key] = [[0 for _ in range(waypoint_graph.GRID_WIDTH)] for _ in range(waypoint_graph.GRID_HEIGHT)]
                 grid = temp_grid[grid_key]
                 
+                own_cells = []
                 if raw_points and len(raw_points) >= 6:
                     poly = []
                     for i in range(0, len(raw_points), 2):
@@ -227,6 +230,15 @@ def sinkronisasi_peta(data):
                             if 0 <= ny < waypoint_graph.GRID_HEIGHT and 0 <= nx < waypoint_graph.GRID_WIDTH:
                                 if is_point_in_polygon(nx + 0.5, ny + 0.5, poly):
                                     grid[ny][nx] = 1
+                                    own_cells.append((nx, ny))
+                    if not own_cells:
+                        for i in range(0, len(raw_points), 2):
+                            vx = max(gx, min(gx + gw - 1, int(gx + raw_points[i] / 25.0)))
+                            vy = max(gy, min(gy + gh - 1, int(gy + raw_points[i+1] / 25.0)))
+                            if 0 <= vy < waypoint_graph.GRID_HEIGHT and 0 <= vx < waypoint_graph.GRID_WIDTH:
+                                grid[vy][vx] = 1
+                                if (vx, vy) not in own_cells:
+                                    own_cells.append((vx, vy))
                 else:
                     for dy in range(gh):
                         for dx in range(gw):
@@ -234,12 +246,64 @@ def sinkronisasi_peta(data):
                             nx = gx + dx
                             if 0 <= ny < waypoint_graph.GRID_HEIGHT and 0 <= nx < waypoint_graph.GRID_WIDTH:
                                 grid[ny][nx] = 1
+                                own_cells.append((nx, ny))
                 
-                kata_kunci = item.get("keywords", [])
-                if room_name not in kata_kunci:
-                    kata_kunci.append(room_name)
+                temp_ruangan[room_id]["_own_cells"] = own_cells
                 
-                data_nlp_baru[room_id] = kata_kunci
+                if (item.get("facility_type") or "") != "wall":
+                    kata_kunci = item.get("keywords", [])
+                    if room_name and room_name not in kata_kunci:
+                        kata_kunci.append(room_name)
+                    data_nlp_baru[room_id] = kata_kunci
+
+        # Sesuaikan door_coords untuk poligon kustom atau ruangan yang sebagian sisinya tertutup tetangga
+        neighbors_8 = [(-1, 0), (1, 0), (0, -1), (0, 1), (-1, -1), (1, 1), (-1, 1), (1, -1)]
+        for room_id, room in temp_ruangan.items():
+            own_cells = room.pop("_own_cells", [])
+            if room.get("type") == "kiosk" or room.get("facility_type") == "wall" or not own_cells:
+                continue
+            grid_key = f"{room['building']}_{room['floor']}"
+            grid = temp_grid.get(grid_key)
+            if not grid:
+                continue
+
+            def has_walkable_neighbor(cx, cy):
+                if 0 <= cx < waypoint_graph.GRID_WIDTH and 0 <= cy < waypoint_graph.GRID_HEIGHT and grid[cy][cx] == 0:
+                    return True
+                for ndx, ndy in neighbors_8:
+                    nx, ny = cx + ndx, cy + ndy
+                    if 0 <= nx < waypoint_graph.GRID_WIDTH and 0 <= ny < waypoint_graph.GRID_HEIGHT and grid[ny][nx] == 0:
+                        return True
+                return False
+
+            own_set = set(own_cells)
+            is_poly = bool(room.get("points") and len(room["points"]) >= 6)
+            corridor_cells = [c for c in own_cells if has_walkable_neighbor(c[0], c[1])]
+            candidate_pool = corridor_cells if corridor_cells else own_cells
+
+            gx, gy, gw, gh = room["x"], room["y"], room["w"], room["h"]
+            mid_x = gx + gw / 2.0
+            mid_y = gy + gh / 2.0
+            refined_doors = []
+            for idx, ep in enumerate(room.get("endpoints", ["bottom"])):
+                orig = room["door_coords"][idx] if idx < len(room["door_coords"]) else None
+                if not is_poly and orig and orig in own_set and has_walkable_neighbor(orig[0], orig[1]):
+                    refined_doors.append(orig)
+                    continue
+                if ep == "top":
+                    best = min(candidate_pool, key=lambda c: (c[1] - gy) * 2.0 + abs(c[0] - mid_x))
+                elif ep == "bottom":
+                    best = min(candidate_pool, key=lambda c: ((gy + gh - 1) - c[1]) * 2.0 + abs(c[0] - mid_x))
+                elif ep == "left":
+                    best = min(candidate_pool, key=lambda c: (c[0] - gx) * 2.0 + abs(c[1] - mid_y))
+                elif ep == "right":
+                    best = min(candidate_pool, key=lambda c: ((gx + gw - 1) - c[0]) * 2.0 + abs(c[1] - mid_y))
+                else:
+                    best = candidate_pool[0]
+                if best not in refined_doors:
+                    refined_doors.append(best)
+            if refined_doors:
+                room["door_coords"] = refined_doors
 
         # Tambahkan nama ruangan induk ke node submap untuk pencocokan NLP yang lebih baik.
         for room_id, room in temp_ruangan.items():
@@ -292,10 +356,21 @@ def translate_names(request: RequestTranslate):
     for name in request.names:
         if not name:
             continue
-        if "lift" in name.lower():
+        name_lower = name.lower()
+        if "lift" in name_lower:
             translations[name] = {
                 "id": name,
                 "en": name
+            }
+        elif "eskalator" in name_lower or "escalator" in name_lower:
+            translations[name] = {
+                "id": "Eskalator",
+                "en": "Escalator"
+            }
+        elif "tangga" in name_lower or "stairs" in name_lower:
+            translations[name] = {
+                "id": "Tangga",
+                "en": "Stairs"
             }
         else:
             names_to_translate.append(name)
@@ -366,8 +441,9 @@ def generate_keywords(request: RequestTranslate):
     for name in request.names:
         if not name:
             continue
-        if "lift" in name.lower() or "tangga" in name.lower():
-            generated_keywords[name] = [name]
+        name_lower = name.lower()
+        if "lift" in name_lower or "tangga" in name_lower or "eskalator" in name_lower or "escalator" in name_lower:
+            generated_keywords[name] = [name, "eskalator", "escalator"] if ("eskalator" in name_lower or "escalator" in name_lower) else [name]
         else:
             names_to_process.append(name)
             
@@ -724,17 +800,27 @@ def save_map_data(request: RequestSaveMap):
                 existing_tenant = db_session.query(Tenant).filter(Tenant.id == el.id).first()
 
                 name_lower = el_name.lower()
+                fac_type = el.facility_type or "general"
+                if "toilet" in name_lower: fac_type = "toilet"
+                elif "musholla" in name_lower: fac_type = "musholla"
+                elif "lift" in name_lower: fac_type = "elevator"
+                elif "eskalator" in name_lower or "escalator" in name_lower: fac_type = "escalator"
+                elif "tangga" in name_lower or "stairs" in name_lower: fac_type = "stairs"
+                elif "atm" in name_lower: fac_type = "atm"
+                elif "cs" in name_lower or "customer service" in name_lower or "informasi" in name_lower: fac_type = "customer_service"
+
                 is_facility = bool(
                     existing_fac or
                     el.facility_type or
                     el.is_connector or
-                    any(k in name_lower for k in ["toilet", "musholla", "lift", "eskalator", "atm", "cs", "customer service", "informasi"])
+                    any(k in name_lower for k in ["toilet", "musholla", "lift", "eskalator", "escalator", "tangga", "stairs", "atm", "cs", "customer service", "informasi"])
                 )
 
                 if is_facility:
                     if existing_fac:
                         existing_fac.name = el_name
                         existing_fac.name_en = el.name_en or el_name
+                        existing_fac.facility_type = fac_type
                         existing_fac.building = el_building
                         existing_fac.floor = el_floor
                         existing_fac.grid_x = el_grid_x
@@ -752,13 +838,6 @@ def save_map_data(request: RequestSaveMap):
                     else:
                         if existing_tenant:
                             db_session.delete(existing_tenant)
-                        fac_type = el.facility_type or "general"
-                        if "toilet" in name_lower: fac_type = "toilet"
-                        elif "musholla" in name_lower: fac_type = "musholla"
-                        elif "lift" in name_lower: fac_type = "elevator"
-                        elif "eskalator" in name_lower: fac_type = "escalator"
-                        elif "atm" in name_lower: fac_type = "atm"
-                        elif "cs" in name_lower or "customer service" in name_lower or "informasi" in name_lower: fac_type = "customer_service"
 
                         new_fac = Facility(
                             id=el.id,

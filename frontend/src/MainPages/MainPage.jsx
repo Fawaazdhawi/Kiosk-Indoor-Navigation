@@ -170,7 +170,7 @@ export default function App() {
     if (streamRef.current) {
       try {
         streamRef.current.getTracks().forEach(track => track.stop());
-      } catch {}
+      } catch { }
       streamRef.current = null;
     }
     setIsListening(false);
@@ -690,7 +690,7 @@ export default function App() {
 
     return Array.from(dedupMap.values()).map(r => ({
       ...r,
-      isGeneric: r._count > 1 || ['toilet', 'lift', 'tangga', 'pintu masuk', 'igd'].includes(r.name.toLowerCase())
+      isGeneric: r._count > 1 || ['toilet', 'lift', 'tangga', 'stairs', 'eskalator', 'escalator', 'pintu masuk', 'igd'].includes(r.name.toLowerCase())
     }));
   }, [rooms, search, building]);
 

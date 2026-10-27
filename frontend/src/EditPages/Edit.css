@@ -328,6 +328,21 @@ body.dark-mode .edit-page-right-panel::-webkit-scrollbar-thumb {
   background: rgba(156, 39, 176, 0.1);
 }
 
+.template-escalator {
+  border-left: 4px solid #00BCD4;
+  width: auto !important;
+  height: auto !important;
+  margin: 0 !important;
+}
+
+.template-escalator .template-icon {
+  background: rgba(0, 188, 212, 0.1);
+  color: #00BCD4;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
 .template-stairs {
   border-left: 4px solid #FF9800;
   width: auto !important;

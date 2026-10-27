@@ -227,6 +227,7 @@ export default function SharedMap3D({
   isDarkMode = false,
   isMobile = false,
   hasActiveNavigation = false,
+  showGrid = false,
 }) {
   const containerRef = useRef(null);
   const [rooms, setRooms] = useState([]);
@@ -526,7 +527,7 @@ export default function SharedMap3D({
     }
     const clampedDist = isMobileDevice
       ? Math.max(280, Math.min(idealDist, 720))
-      : Math.max(380, Math.min(idealDist, 3500));
+      : Math.max(380, Math.min(idealDist, 4800));
 
     if (angle === "top") {
       return {
@@ -671,8 +672,8 @@ export default function SharedMap3D({
     dirLight.shadow.mapSize.width = 2048;
     dirLight.shadow.mapSize.height = 2048;
     dirLight.shadow.camera.near = 50;
-    dirLight.shadow.camera.far = 4000;
-    const d = 1400;
+    dirLight.shadow.camera.far = 5000;
+    const d = 2200;
     dirLight.shadow.camera.left = -d;
     dirLight.shadow.camera.right = d;
     dirLight.shadow.camera.top = d;
@@ -1055,12 +1056,14 @@ export default function SharedMap3D({
     const slabW = width + 100;
     const slabH = height + 100;
 
-    // Floor Slab Mesh
+    // Floor Slab Mesh: Abu-abu terang elegan menuju putih (soft architectural light gray toward white)
     const slabGeo = new THREE.BoxGeometry(slabW, 10, slabH);
     const slabMat = new THREE.MeshStandardMaterial({
-      color: isDarkMode ? 0x0f172a : 0xf8fafc,
-      roughness: 0.5,
-      metalness: 0.08,
+      color: isDarkMode ? 0x0f172a : 0xedf2f7,
+      emissive: new THREE.Color(isDarkMode ? 0x000000 : 0xe2e8f0),
+      emissiveIntensity: isDarkMode ? 0 : 0.35,
+      roughness: 0.4,
+      metalness: 0.05,
     });
     const slabMesh = new THREE.Mesh(slabGeo, slabMat);
     slabMesh.position.set(0, -5.1, 0);
@@ -1070,23 +1073,25 @@ export default function SharedMap3D({
     // Border Frame di sekeliling lantai
     const borderEdges = new THREE.EdgesGeometry(slabGeo);
     const borderMat = new THREE.LineBasicMaterial({
-      color: isDarkMode ? 0x38bdf8 : 0x0284c7,
+      color: isDarkMode ? 0x38bdf8 : 0x94a3b8,
       linewidth: 2,
     });
     const borderLines = new THREE.LineSegments(borderEdges, borderMat);
     borderLines.position.copy(slabMesh.position);
     groundGroup.add(borderLines);
 
-    // Subtle 3D Grid Lines di atas lantai
-    const gridHelper = new THREE.GridHelper(
-      Math.max(slabW, slabH),
-      Math.round(Math.max(slabW, slabH) / GRID_SIZE),
-      isDarkMode ? 0x334155 : 0xcbd5e1,
-      isDarkMode ? 0x1e293b : 0xe2e8f0
-    );
-    gridHelper.position.y = 0.05;
-    groundGroup.add(gridHelper);
-  }, [mapBounds, isDarkMode]);
+    // 3D Grid Lines (disembunyikan secara default agar lantai tampak bersih, rapi, dan elegan)
+    if (showGrid) {
+      const gridHelper = new THREE.GridHelper(
+        Math.max(slabW, slabH),
+        Math.round(Math.max(slabW, slabH) / GRID_SIZE),
+        isDarkMode ? 0x334155 : 0xcbd5e1,
+        isDarkMode ? 0x1e293b : 0xe2e8f0
+      );
+      gridHelper.position.y = 0.05;
+      groundGroup.add(gridHelper);
+    }
+  }, [mapBounds, isDarkMode, showGrid]);
 
   // Render 3D Rooms & Kiosks & Label Badges
   useEffect(() => {
@@ -1105,15 +1110,18 @@ export default function SharedMap3D({
     console.log("3D Map Render: allBlocks =", allBlocks.length, "centerX =", centerX, "centerZ =", centerZ, "bounds =", mapBounds);
 
     allBlocks.forEach((item) => {
-      const isPintu = item.is_connector || item.name?.toLowerCase().includes("pintu");
-      const isLift = item.name?.toLowerCase().includes("lift");
-      const isStairs = item.name?.toLowerCase().includes("tangga") || item.name?.toLowerCase().includes("stairs");
+      const nameLower = (item.name || "").toLowerCase();
+      const isWall = item.facility_type === "wall";
+      const isPintu = !isWall && (item.is_connector || nameLower.includes("pintu") || nameLower.includes("koridor"));
+      const isLift = !isWall && nameLower.includes("lift");
+      const isEscalator = !isWall && (nameLower.includes("eskalator") || nameLower.includes("escalator"));
+      const isStairs = !isWall && (nameLower.includes("tangga") || nameLower.includes("stairs")) && !isEscalator;
       const isKiosk = item.isKiosk;
 
-      // Color scheme yang tajam, elegan, dan kontras tinggi di semua tingkat zoom
-      let color = isDarkMode ? 0x24344d : 0xecf0f5;
+      // Tenant tetap warna abu-abu arsitektural yang konsisten, bersih, dan kontras dengan lantai
+      let color = isWall ? (isDarkMode ? 0x1e293b : 0xcbd5e1) : (isDarkMode ? 0x24344d : 0x94a3b8);
       let emissive = isDarkMode ? 0x0f172a : 0x000000;
-      let edgeColor = isDarkMode ? 0x64748b : 0x475569;
+      let edgeColor = isDarkMode ? 0x64748b : 0x334155;
       let typeBadgeColor = isDarkMode ? "#94a3b8" : "#475569";
 
       if (isKiosk) {
@@ -1131,6 +1139,11 @@ export default function SharedMap3D({
         emissive = 0x6d28d9;
         edgeColor = 0xc4b5fd;
         typeBadgeColor = "#8b5cf6";
+      } else if (isEscalator) {
+        color = 0x06b6d4;
+        emissive = 0x0891b2;
+        edgeColor = 0x67e8f9;
+        typeBadgeColor = "#06b6d4";
       } else if (isStairs) {
         color = 0xf97316;
         emissive = 0xc2410c;
@@ -1140,7 +1153,7 @@ export default function SharedMap3D({
 
       const w = Math.max(item.width - 2, 4);
       const d = Math.max(item.height - 2, 4);
-      const h = isKiosk ? WALL_HEIGHT * 0.75 : WALL_HEIGHT;
+      const h = isWall ? WALL_HEIGHT * 0.45 : isKiosk ? WALL_HEIGHT * 0.75 : WALL_HEIGHT;
 
       let geo;
       const isPolygon = item.points && item.points.length >= 6;
@@ -1165,10 +1178,10 @@ export default function SharedMap3D({
 
       const mat = new THREE.MeshStandardMaterial({
         color,
-        roughness: isKiosk || isLift || isStairs || isPintu ? 0.3 : 0.4,
+        roughness: isKiosk || isLift || isStairs || isEscalator || isPintu ? 0.3 : 0.4,
         metalness: 0.15,
         transparent: true,
-        opacity: isKiosk || isLift || isStairs || isPintu ? 0.98 : 0.96,
+        opacity: isKiosk || isLift || isStairs || isEscalator || isPintu ? 0.98 : 0.96,
         emissive: new THREE.Color(emissive),
         emissiveIntensity: isDarkMode ? 0.45 : 0.08,
       });
@@ -1192,13 +1205,15 @@ export default function SharedMap3D({
 
       roomsGroup.add(mesh);
 
-      // Label Badge Sprite melayang di atas ruangan
-      let displayName = getDisplayNodeName(item, language);
-      if (!displayName) displayName = translateName(isKiosk ? "Kiosk" : "Tanpa Nama", language);
+      if (!isWall) {
+        // Label Badge Sprite melayang di atas ruangan
+        let displayName = getDisplayNodeName(item, language);
+        if (!displayName) displayName = translateName(isKiosk ? "Kiosk" : "Tanpa Nama", language);
 
-      const sprite = createRoomBadgeSprite(displayName, typeBadgeColor, isDarkMode);
-      sprite.position.set(posX, h + 13, posZ);
-      labelsGroup.add(sprite);
+        const sprite = createRoomBadgeSprite(displayName, typeBadgeColor, isDarkMode);
+        sprite.position.set(posX, h + 13, posZ);
+        labelsGroup.add(sprite);
+      }
     });
   }, [currentFloorRooms, currentFloorKiosks, mapBounds, isDarkMode, language]);
 

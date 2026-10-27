@@ -265,7 +265,7 @@ export default function SharedMap({
     const availableHeight = Math.max(50, mapSize.height - viewportMargin * 2);
     const scaleX = availableWidth / mapBounds.width;
     const scaleY = availableHeight / mapBounds.height;
-    
+
     // Skala dinamis fleksibel: bila ruangan sedikit akan di-zoom pas (maks 3x), bila ruangan luas akan di-fit penuh
     const idealScale = Math.min(scaleX, scaleY);
     const scale = Math.max(0.1, Math.min(idealScale, 3.0));
@@ -509,32 +509,32 @@ export default function SharedMap({
 
         let newPts = [idlePos.x, idlePos.y];
         if (Math.abs(idlePos.x - closestPoint.x) > 1 && Math.abs(idlePos.y - closestPoint.y) > 1) {
-            const corner1 = { x: idlePos.x, y: closestPoint.y };
-            const corner2 = { x: closestPoint.x, y: idlePos.y };
+          const corner1 = { x: idlePos.x, y: closestPoint.y };
+          const corner2 = { x: closestPoint.x, y: idlePos.y };
 
-            const kx = selectedKioskData.x;
-            const ky = selectedKioskData.y;
-            const kw = selectedKioskData.width;
-            const kh = selectedKioskData.height;
-            const isInside = (p) => p.x >= kx - 1 && p.x <= kx + kw + 1 && p.y >= ky - 1 && p.y <= ky + kh + 1;
-            
-            if (isInside(corner1)) {
-                newPts.push(corner2.x, corner2.y);
-            } else if (isInside(corner2)) {
-                newPts.push(corner1.x, corner1.y);
+          const kx = selectedKioskData.x;
+          const ky = selectedKioskData.y;
+          const kw = selectedKioskData.width;
+          const kh = selectedKioskData.height;
+          const isInside = (p) => p.x >= kx - 1 && p.x <= kx + kw + 1 && p.y >= ky - 1 && p.y <= ky + kh + 1;
+
+          if (isInside(corner1)) {
+            newPts.push(corner2.x, corner2.y);
+          } else if (isInside(corner2)) {
+            newPts.push(corner1.x, corner1.y);
+          } else {
+            if (pts.length >= 4) {
+              const x1 = pts[segmentIndex];
+              const x2 = pts[segmentIndex + 2];
+              if (Math.abs(x1 - x2) > 1) {
+                newPts.push(idlePos.x, closestPoint.y);
+              } else {
+                newPts.push(closestPoint.x, idlePos.y);
+              }
             } else {
-                if (pts.length >= 4) {
-                    const x1 = pts[segmentIndex];
-                    const x2 = pts[segmentIndex + 2];
-                    if (Math.abs(x1 - x2) > 1) {
-                        newPts.push(idlePos.x, closestPoint.y);
-                    } else {
-                        newPts.push(closestPoint.x, idlePos.y);
-                    }
-                } else {
-                    newPts.push(closestPoint.x, idlePos.y);
-                }
+              newPts.push(closestPoint.x, idlePos.y);
             }
+          }
         }
         newPts.push(closestPoint.x, closestPoint.y);
 
@@ -593,32 +593,32 @@ export default function SharedMap({
 
       let newPts = [idlePos.x, idlePos.y];
       if (Math.abs(idlePos.x - closestPoint.x) > 1 && Math.abs(idlePos.y - closestPoint.y) > 1) {
-          const corner1 = { x: idlePos.x, y: closestPoint.y };
-          const corner2 = { x: closestPoint.x, y: idlePos.y };
+        const corner1 = { x: idlePos.x, y: closestPoint.y };
+        const corner2 = { x: closestPoint.x, y: idlePos.y };
 
-          const kx = selectedKioskData.x;
-          const ky = selectedKioskData.y;
-          const kw = selectedKioskData.width;
-          const kh = selectedKioskData.height;
-          const isInside = (p) => p.x >= kx - 1 && p.x <= kx + kw + 1 && p.y >= ky - 1 && p.y <= ky + kh + 1;
-          
-          if (isInside(corner1)) {
-              newPts.push(corner2.x, corner2.y);
-          } else if (isInside(corner2)) {
-              newPts.push(corner1.x, corner1.y);
+        const kx = selectedKioskData.x;
+        const ky = selectedKioskData.y;
+        const kw = selectedKioskData.width;
+        const kh = selectedKioskData.height;
+        const isInside = (p) => p.x >= kx - 1 && p.x <= kx + kw + 1 && p.y >= ky - 1 && p.y <= ky + kh + 1;
+
+        if (isInside(corner1)) {
+          newPts.push(corner2.x, corner2.y);
+        } else if (isInside(corner2)) {
+          newPts.push(corner1.x, corner1.y);
+        } else {
+          if (pts.length >= 4) {
+            const x1 = pts[segmentIndex];
+            const x2 = pts[segmentIndex + 2];
+            if (Math.abs(x1 - x2) > 1) {
+              newPts.push(idlePos.x, closestPoint.y);
+            } else {
+              newPts.push(closestPoint.x, idlePos.y);
+            }
           } else {
-              if (pts.length >= 4) {
-                  const x1 = pts[segmentIndex];
-                  const x2 = pts[segmentIndex + 2];
-                  if (Math.abs(x1 - x2) > 1) {
-                      newPts.push(idlePos.x, closestPoint.y);
-                  } else {
-                      newPts.push(closestPoint.x, idlePos.y);
-                  }
-              } else {
-                  newPts.push(closestPoint.x, idlePos.y);
-              }
+            newPts.push(closestPoint.x, idlePos.y);
           }
+        }
       }
       newPts.push(closestPoint.x, closestPoint.y);
 
@@ -1087,18 +1087,22 @@ export default function SharedMap({
 
                   const fontSize = Math.max(9, Math.min(maxFontSizeWord, maxFontSizeArea, maxFontSizeSingleLine));
 
-                  const isPintu = room.is_connector || room.name?.toLowerCase().includes('pintu');
-                  const isLift = room.name?.toLowerCase().includes('lift');
-                  const isStairs = room.name?.toLowerCase().includes('tangga') || room.name?.toLowerCase().includes('stairs');
+                  const isWall = room.facility_type === 'wall';
+                  const isPintu = !isWall && (room.is_connector || room.name?.toLowerCase().includes('pintu'));
+                  const isLift = !isWall && room.name?.toLowerCase().includes('lift');
+                  const isEscalator = !isWall && (room.name?.toLowerCase().includes('eskalator') || room.name?.toLowerCase().includes('escalator'));
+                  const isStairs = !isWall && (room.name?.toLowerCase().includes('tangga') || room.name?.toLowerCase().includes('stairs')) && !isEscalator;
 
-                  let fillCol = isDarkMode ? "#334155" : "#cbd5e1";
-                  let strokeCol = isDarkMode ? "#64748b" : "#94a3b8";
+                  let fillCol = isWall ? (isDarkMode ? "#1e293b" : "#e2e8f0") : (isDarkMode ? "#334155" : "#cbd5e1");
+                  let strokeCol = isWall ? (isDarkMode ? "#475569" : "#94a3b8") : (isDarkMode ? "#64748b" : "#94a3b8");
                   let textFill = isDarkMode ? "#f8fafc" : "#0f172a";
 
                   if (isPintu) {
                     fillCol = "#4CAF50"; strokeCol = "#2E7D32"; textFill = "#ffffff";
                   } else if (isLift) {
                     fillCol = "#9C27B0"; strokeCol = "#6A1B9A"; textFill = "#ffffff";
+                  } else if (isEscalator) {
+                    fillCol = "#00BCD4"; strokeCol = "#00838F"; textFill = "#ffffff";
                   } else if (isStairs) {
                     fillCol = "#FF9800"; strokeCol = "#E65100"; textFill = "#ffffff";
                   }
@@ -1126,15 +1130,17 @@ export default function SharedMap({
                       ) : (
                         <Rect x={room.x} y={room.y} width={room.width} height={room.height} fill={fillCol} stroke={strokeCol} strokeWidth={2} perfectDrawEnabled={false} shadowForStrokeEnabled={false} />
                       )}
-                      <Text
-                        text={textContent}
-                        x={room.x} y={room.y} width={room.width} height={room.height}
-                        fontSize={fontSize} fontStyle="bold" fill={textFill}
-                        align="center" verticalAlign="middle" padding={5}
-                        wrap="word" ellipsis={false}
-                        perfectDrawEnabled={false}
-                        listening={false}
-                      />
+                      {!isWall && (
+                        <Text
+                          text={textContent}
+                          x={room.x} y={room.y} width={room.width} height={room.height}
+                          fontSize={fontSize} fontStyle="bold" fill={textFill}
+                          align="center" verticalAlign="middle" padding={5}
+                          wrap="word" ellipsis={false}
+                          perfectDrawEnabled={false}
+                          listening={false}
+                        />
+                      )}
                     </Group>
                   );
                 })}
@@ -1145,7 +1151,8 @@ export default function SharedMap({
                   if (!textContent) textContent = "Kiosk";
                   const isPintu = kiosk.name?.toLowerCase().includes('pintu');
                   const isLift = kiosk.name?.toLowerCase().includes('lift');
-                  const isStairs = kiosk.name?.toLowerCase().includes('tangga') || kiosk.name?.toLowerCase().includes('stairs');
+                  const isEscalator = kiosk.name?.toLowerCase().includes('eskalator') || kiosk.name?.toLowerCase().includes('escalator');
+                  const isStairs = (kiosk.name?.toLowerCase().includes('tangga') || kiosk.name?.toLowerCase().includes('stairs')) && !isEscalator;
 
                   let fillCol = "#2196F3";
                   let strokeCol = "#0D47A1";
@@ -1154,6 +1161,8 @@ export default function SharedMap({
                     fillCol = "#4CAF50"; strokeCol = "#2E7D32";
                   } else if (isLift) {
                     fillCol = "#9C27B0"; strokeCol = "#6A1B9A";
+                  } else if (isEscalator) {
+                    fillCol = "#00BCD4"; strokeCol = "#00838F";
                   } else if (isStairs) {
                     fillCol = "#FF9800"; strokeCol = "#E65100";
                   }

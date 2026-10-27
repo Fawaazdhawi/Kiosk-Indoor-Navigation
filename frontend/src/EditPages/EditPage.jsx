@@ -64,8 +64,9 @@ const ElementShape = React.memo(({
 
     const isEntrance = shapeProps.type === 'kiosk' && shapeProps.name?.toLowerCase().includes('pintu');
     const isLift = shapeProps.name?.toLowerCase().includes('lift');
-    const isStairs = shapeProps.name?.toLowerCase().includes('tangga') || shapeProps.name?.toLowerCase().includes('stairs');
-    const isKiosk = shapeProps.type === 'kiosk' && !isEntrance && !isLift && !isStairs;
+    const isEscalator = shapeProps.name?.toLowerCase().includes('eskalator') || shapeProps.name?.toLowerCase().includes('escalator');
+    const isStairs = (shapeProps.name?.toLowerCase().includes('tangga') || shapeProps.name?.toLowerCase().includes('stairs')) && !isEscalator;
+    const isKiosk = shapeProps.type === 'kiosk' && !isEntrance && !isLift && !isStairs && !isEscalator;
 
     if (isEntrance) {
       if (isNew) return { fill: isDarkMode ? "#1b5e20" : "#a5d6a7", stroke: isDarkMode ? "#2e7d32" : "#4caf50", text: isDarkMode ? "#ffffff" : "#1b5e20" };
@@ -77,6 +78,12 @@ const ElementShape = React.memo(({
       if (isNew) return { fill: isDarkMode ? "#4a148c" : "#e1bee7", stroke: isDarkMode ? "#6a1b9a" : "#ab47bc", text: isDarkMode ? "#ffffff" : "#4a148c" };
       if (isChanged) return { fill: isDarkMode ? "#311b92" : "#d1c4e9", stroke: isDarkMode ? "#4527a0" : "#9575cd", text: isDarkMode ? "#ffffff" : "#311b92" };
       return { fill: "#9C27B0", stroke: "#6A1B9A", text: "#FFFFFF" };
+    }
+
+    if (isEscalator) {
+      if (isNew) return { fill: isDarkMode ? "#006064" : "#b2ebf2", stroke: isDarkMode ? "#00838f" : "#26c6da", text: isDarkMode ? "#ffffff" : "#006064" };
+      if (isChanged) return { fill: isDarkMode ? "#004d40" : "#b2dfdb", stroke: isDarkMode ? "#00695c" : "#26a69a", text: isDarkMode ? "#ffffff" : "#004d40" };
+      return { fill: "#00BCD4", stroke: "#00838F", text: "#FFFFFF" };
     }
 
     if (isStairs) {
@@ -2197,6 +2204,82 @@ export default function EditPage() {
                 };
                 return (
                   <div style={{ display: "flex", flexDirection: "column", gap: "10px" }}>
+                    <div className="endpoint-controls edit-card-inner">
+                      <h4 className="endpoint-title">{language === 'id' ? 'Nama & Tipe Elemen' : 'Element Name & Type'}</h4>
+                      <input
+                        type="text"
+                        value={room.name || ""}
+                        onChange={(e) => updateRoom({ name: e.target.value })}
+                        placeholder={language === 'id' ? 'Nama elemen...' : 'Element name...'}
+                        style={{
+                          width: "100%",
+                          padding: "6px 10px",
+                          borderRadius: "5px",
+                          border: "1px solid var(--border)",
+                          background: "var(--input-bg, #ffffff)",
+                          color: "var(--text-main)",
+                          fontSize: "13px",
+                          boxSizing: "border-box",
+                          marginBottom: "8px"
+                        }}
+                      />
+                      <div style={{ display: "flex", gap: "6px", flexWrap: "wrap" }}>
+                        <button
+                          type="button"
+                          className="edit-btn"
+                          style={{
+                            flex: 1,
+                            padding: "5px 4px",
+                            fontSize: "11px",
+                            background: room.name?.toLowerCase().includes("eskalator") || room.name?.toLowerCase().includes("escalator") ? "#00BCD4" : "var(--bg-secondary)",
+                            color: room.name?.toLowerCase().includes("eskalator") || room.name?.toLowerCase().includes("escalator") ? "#ffffff" : "var(--text-main)",
+                            border: "1px solid #00BCD4",
+                            borderRadius: "4px",
+                            cursor: "pointer",
+                            fontWeight: 600
+                          }}
+                          onClick={() => updateRoom({ name: language === 'id' ? "Eskalator" : "Escalator", facility_type: "escalator" })}
+                        >
+                          ⚡ {language === 'id' ? 'Eskalator' : 'Escalator'}
+                        </button>
+                        <button
+                          type="button"
+                          className="edit-btn"
+                          style={{
+                            flex: 1,
+                            padding: "5px 4px",
+                            fontSize: "11px",
+                            background: (room.name?.toLowerCase().includes("tangga") || room.name?.toLowerCase().includes("stairs")) && !room.name?.toLowerCase().includes("eskalator") ? "#FF9800" : "var(--bg-secondary)",
+                            color: (room.name?.toLowerCase().includes("tangga") || room.name?.toLowerCase().includes("stairs")) && !room.name?.toLowerCase().includes("eskalator") ? "#ffffff" : "var(--text-main)",
+                            border: "1px solid #FF9800",
+                            borderRadius: "4px",
+                            cursor: "pointer",
+                            fontWeight: 600
+                          }}
+                          onClick={() => updateRoom({ name: language === 'id' ? "Tangga" : "Stairs", facility_type: "stairs" })}
+                        >
+                          🪜 {language === 'id' ? 'Tangga' : 'Stairs'}
+                        </button>
+                        <button
+                          type="button"
+                          className="edit-btn"
+                          style={{
+                            flex: 1,
+                            padding: "5px 4px",
+                            fontSize: "11px",
+                            background: room.name?.toLowerCase().includes("lift") ? "#9C27B0" : "var(--bg-secondary)",
+                            color: room.name?.toLowerCase().includes("lift") ? "#ffffff" : "var(--text-main)",
+                            border: "1px solid #9C27B0",
+                            borderRadius: "4px",
+                            cursor: "pointer",
+                            fontWeight: 600
+                          }}
+                          onClick={() => updateRoom({ name: "Lift", facility_type: "elevator" })}
+                        >
+                          🛗 Lift
+                        </button>
+                      </div>
+                    </div>
                     {room.is_connector && (
                       <div className="endpoint-controls edit-card-inner">
                         <h4 className="endpoint-title">{language === 'id' ? 'Menuju Gedung' : 'Target Building'}</h4>
@@ -2676,6 +2759,63 @@ export default function EditPage() {
                 >
                   <div className="template-icon">🛗</div>
                   <p>Lift</p>
+                </div>
+
+                <div
+                  draggable
+                  style={{ touchAction: 'none' }}
+                  onDragStart={(e) => {
+                    e.dataTransfer.setData("text/plain", JSON.stringify({
+                      type: "new-room",
+                      defaultName: language === 'id' ? "Eskalator" : "Escalator",
+                      defaultGridWidth: 3,
+                      defaultGridHeight: 2,
+                      endpoints: ["bottom"]
+                    }));
+                  }}
+                  onTouchStart={() => {
+                    touchDragDataRef.current = {
+                      type: "new-room",
+                      defaultName: language === 'id' ? "Eskalator" : "Escalator",
+                      defaultGridWidth: 3,
+                      defaultGridHeight: 2,
+                      endpoints: ["bottom"]
+                    };
+                  }}
+                  onTouchEnd={(e) => {
+                    if (!touchDragDataRef.current) return;
+                    const touch = e.changedTouches[0];
+                    const target = document.elementFromPoint(touch.clientX, touch.clientY);
+                    const mapContainer = mapRef.current;
+                    if (mapContainer && mapContainer.contains(target)) {
+                      const mapRect = mapContainer.getBoundingClientRect();
+                      const clientX = touch.clientX - mapRect.left;
+                      const clientY = touch.clientY - mapRect.top;
+                      processDrop(clientX, clientY, touchDragDataRef.current);
+                    }
+                    touchDragDataRef.current = null;
+                  }}
+                  onClick={() => {
+                    const center = getViewportCenter();
+                    const newId = generateNextRoomId();
+                    const newElements = [...placedElements, {
+                      id: newId, type: 'room', floor: activeEditFloor, building: activeEditBuilding,
+                      x: center.x, y: center.y, width: GRID_SIZE * 3, height: GRID_SIZE * 2,
+                      endpoints: ["bottom"], name: language === 'id' ? "Eskalator" : "Escalator"
+                    }];
+                    setPlacedElements(newElements);
+                    saveHistory(newElements);
+                  }}
+                  className="template-card template-escalator"
+                >
+                  <div className="template-icon">
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+                      <path d="M4 19h4.5a2 2 0 0 0 1.6-.8l5.8-7.4a2 2 0 0 1 1.6-.8H21" />
+                      <circle cx="7" cy="7" r="1.5" />
+                      <path d="M6 10h2.5l2 3" />
+                    </svg>
+                  </div>
+                  <p>{language === 'id' ? 'Eskalator' : 'Escalator'}</p>
                 </div>
 
                 <div

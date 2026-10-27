@@ -8,6 +8,9 @@ export const translateName = (name, lang, nameEn) => {
   const ordinals = ["Zero", "First", "Second", "Third", "Fourth", "Fifth", "Sixth", "Seventh", "Eighth", "Ninth", "Tenth", "Eleventh", "Twelfth", "Thirteenth", "Fourteenth", "Fifteenth"];
 
   if (lang === 'en') {
+    if (translated.toLowerCase() === 'eskalator') return 'Escalator';
+    if (translated.toLowerCase() === 'tangga') return 'Stairs';
+
     // Ubah Lantai X -> First Floor, Second Floor, dll.
     const floorMatch = translated.match(/Lantai\s+(\d+)/i);
     if (floorMatch) {
@@ -22,6 +25,8 @@ export const translateName = (name, lang, nameEn) => {
     // Ubah Gedung -> Building
     translated = translated.replace(/Gedung/i, 'Building');
   } else if (lang === 'id') {
+    if (translated.toLowerCase() === 'escalator') return 'Eskalator';
+    if (translated.toLowerCase() === 'stairs') return 'Tangga';
 
 
     // Ubah First Floor -> Lantai 1

@@ -103,17 +103,61 @@ def cari_target_ruangan(input_pengunjung, start_node_id=None, language="id", cur
             }
 
     # 0b. EXACT ROOM NAME MATCH (Nama toko/ruangan persis sama baik id maupun en)
+    exact_name_matches = []
     for r_id, room in waypoint_graph.RUANGAN_GRID.items():
+        if room.get("facility_type") == "wall":
+            continue
         name_id = room.get("name", "").strip().lower()
         name_en = room.get("name_en", "").strip().lower()
         unit_no = room.get("unit_number", "").strip().lower()
         if input_lower and (input_lower == name_id or (name_en and input_lower == name_en) or (unit_no and input_lower == unit_no)):
+            exact_name_matches.append(r_id)
+
+    if exact_name_matches:
+        if len(exact_name_matches) == 1:
             return {
                 "status": "success",
-                "target_id": r_id,
+                "target_id": exact_name_matches[0],
                 "confidence_score": 1.0,
                 "match_type": "exact_name"
             }
+        start_room = waypoint_graph.RUANGAN_GRID.get(start_node_id) if start_node_id else None
+        if start_room:
+            start_floor = start_room.get("floor", "Lantai 1")
+            start_bld = start_room.get("building")
+            start_x = start_room.get("x", 0)
+            start_y = start_room.get("y", 0)
+            pref_floor = current_floor if current_floor else start_floor
+            best_id = min(
+                exact_name_matches,
+                key=lambda mid: (
+                    0 if waypoint_graph.RUANGAN_GRID[mid].get("building") == start_bld else 50000,
+                    0 if waypoint_graph.RUANGAN_GRID[mid].get("floor") == pref_floor else 10000,
+                    abs(start_x - waypoint_graph.RUANGAN_GRID[mid].get("x", 0))
+                    + abs(start_y - waypoint_graph.RUANGAN_GRID[mid].get("y", 0)),
+                ),
+            )
+            return {
+                "status": "success",
+                "target_id": best_id,
+                "confidence_score": 1.0,
+                "match_type": "exact_name"
+            }
+        if current_floor:
+            for mid in exact_name_matches:
+                if waypoint_graph.RUANGAN_GRID[mid].get("floor") == current_floor:
+                    return {
+                        "status": "success",
+                        "target_id": mid,
+                        "confidence_score": 1.0,
+                        "match_type": "exact_name"
+                    }
+        return {
+            "status": "success",
+            "target_id": exact_name_matches[0],
+            "confidence_score": 1.0,
+            "match_type": "exact_name"
+        }
 
     input_bersih = bersihkan_teks(input_pengunjung)
     
@@ -143,7 +187,7 @@ def cari_target_ruangan(input_pengunjung, start_node_id=None, language="id", cur
         for r_id, room in waypoint_graph.RUANGAN_GRID.items():
             if room.get("floor", "Lantai 1") == target_floor_match:
                 nama = room.get("name", "").lower()
-                is_vertical = ("lift" in nama or "tangga" in nama) and "darurat" not in nama
+                is_vertical = ("lift" in nama or "tangga" in nama or "eskalator" in nama or "escalator" in nama) and "darurat" not in nama
                 if is_vertical:
                     return {
                         "status": "success",
@@ -259,6 +303,8 @@ def cari_target_ruangan(input_pengunjung, start_node_id=None, language="id", cur
     mapping_kunci_ke_id = {}
 
     for r_id, room in waypoint_graph.RUANGAN_GRID.items():
+        if room.get("facility_type") == "wall":
+            continue
         room_name_lower = room.get("name", "").lower().strip()
         room_keywords = [k.lower().strip() for k in room.get("keywords", [])]
         
@@ -456,7 +502,7 @@ def cari_target_ruangan(input_pengunjung, start_node_id=None, language="id", cur
         for r_id, room in waypoint_graph.RUANGAN_GRID.items():
             if room.get("floor", "Lantai 1").lower() == target_floor.lower():
                 nama = room.get("name", "").lower()
-                is_vertical = ("lift" in nama or "tangga" in nama) and "darurat" not in nama
+                is_vertical = ("lift" in nama or "tangga" in nama or "eskalator" in nama or "escalator" in nama) and "darurat" not in nama
                 if is_vertical:
                     return {
                         "status": "success",
