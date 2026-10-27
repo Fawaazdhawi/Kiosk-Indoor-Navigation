@@ -111,10 +111,11 @@ function getIdlePosition(kiosk, floorRooms, floorKiosks) {
 }
 
 // Helper untuk membuat Canvas Sprite Badge label ruangan yang tajam & high-DPI
+// Helper untuk membuat Canvas Sprite Badge label ruangan yang tajam & high-DPI
 function createRoomBadgeSprite(text, typeColor, isDark) {
   const canvas = document.createElement("canvas");
   const ctx = canvas.getContext("2d");
-  const scale = 2; // Hi-DPI
+  const scale = 2.5; // High-DPI untuk ketajaman ekstra saat di-zoom
   const fontSize = 14 * scale;
   ctx.font = `bold ${fontSize}px 'DM Sans', -apple-system, sans-serif`;
 
@@ -122,7 +123,7 @@ function createRoomBadgeSprite(text, typeColor, isDark) {
   const textWidth = textMetrics.width;
   const paddingH = 14 * scale;
   const paddingV = 7 * scale;
-  const width = Math.max(textWidth + paddingH * 2 + 12 * scale, 60 * scale);
+  const width = Math.max(textWidth + paddingH * 2 + 14 * scale, 65 * scale);
   const height = fontSize + paddingV * 2;
 
   canvas.width = width;
@@ -132,8 +133,13 @@ function createRoomBadgeSprite(text, typeColor, isDark) {
   ctx.font = `bold ${fontSize}px 'DM Sans', -apple-system, sans-serif`;
   ctx.imageSmoothingEnabled = true;
 
-  // Background pill badge
+  // Background pill badge dengan shadow lembut agar kontras di atas gedung/lantai
   const radius = height / 2;
+  ctx.save();
+  ctx.shadowColor = isDark ? "rgba(0, 0, 0, 0.75)" : "rgba(15, 23, 42, 0.22)";
+  ctx.shadowBlur = 6 * scale;
+  ctx.shadowOffsetY = 2 * scale;
+
   ctx.beginPath();
   ctx.moveTo(radius, 0);
   ctx.lineTo(width - radius, 0);
@@ -146,17 +152,31 @@ function createRoomBadgeSprite(text, typeColor, isDark) {
   ctx.quadraticCurveTo(0, 0, radius, 0);
   ctx.closePath();
 
-  ctx.fillStyle = isDark ? "rgba(15, 23, 42, 0.88)" : "rgba(255, 255, 255, 0.92)";
+  ctx.fillStyle = isDark ? "rgba(15, 23, 42, 0.94)" : "rgba(255, 255, 255, 0.96)";
   ctx.fill();
+  ctx.restore();
 
-  ctx.strokeStyle = typeColor || (isDark ? "rgba(255, 255, 255, 0.2)" : "rgba(0, 0, 0, 0.15)");
+  // Stroke border badge
+  ctx.beginPath();
+  ctx.moveTo(radius, 0);
+  ctx.lineTo(width - radius, 0);
+  ctx.quadraticCurveTo(width, 0, width, radius);
+  ctx.lineTo(width, height - radius);
+  ctx.quadraticCurveTo(width, height, width - radius, height);
+  ctx.lineTo(radius, height);
+  ctx.quadraticCurveTo(0, height, 0, height - radius);
+  ctx.lineTo(0, radius);
+  ctx.quadraticCurveTo(0, 0, radius, 0);
+  ctx.closePath();
+
+  ctx.strokeStyle = typeColor || (isDark ? "rgba(255, 255, 255, 0.3)" : "rgba(15, 23, 42, 0.2)");
   ctx.lineWidth = 1.8 * scale;
   ctx.stroke();
 
   // Color dot indicator
   const dotX = paddingH;
   const dotY = height / 2;
-  const dotR = 4 * scale;
+  const dotR = 4.2 * scale;
   ctx.beginPath();
   ctx.arc(dotX, dotY, dotR, 0, Math.PI * 2);
   ctx.fillStyle = typeColor || "#3b82f6";
@@ -181,10 +201,14 @@ function createRoomBadgeSprite(text, typeColor, isDark) {
 
   const sprite = new THREE.Sprite(material);
   const aspect = width / height;
-  const worldHeight = 11;
+  const worldHeight = 13.5;
   sprite.scale.set(worldHeight * aspect, worldHeight, 1);
+  sprite.userData = {
+    baseScale: { x: worldHeight * aspect, y: worldHeight },
+  };
   return sprite;
 }
+
 
 export default function SharedMap3D({
   rooms: propRooms,
@@ -594,12 +618,12 @@ export default function SharedMap3D({
     sceneRef.current = scene;
     scene.background = new THREE.Color(isDarkMode ? 0x090d16 : 0xf1f5f9);
 
-    // Fog untuk depth atmosferik
-    scene.fog = new THREE.FogExp2(isDarkMode ? 0x090d16 : 0xf1f5f9, 0.0007);
+    // Fog dinonaktifkan agar seluruh denah gedung 3D terlihat jelas & tajam di semua jarak zoom tanpa memudar
+    scene.fog = null;
 
     // Camera (Perspective Isometric Style)
     const isMobileDevice = isMobile || width < 768 || (width / height) < 0.85;
-    const camera = new THREE.PerspectiveCamera(isMobileDevice ? 48 : 40, width / height, 1, 6000);
+    const camera = new THREE.PerspectiveCamera(isMobileDevice ? 48 : 40, width / height, 2, 20000);
     cameraRef.current = camera;
     const initialCam = getIdealCameraPos(mapBounds, viewAngle);
     camera.position.set(initialCam.x, initialCam.y, initialCam.z);
@@ -626,7 +650,7 @@ export default function SharedMap3D({
     controls.maxPolarAngle = Math.PI / 2 - 0.05; // Mencegah kamera tembus ke bawah lantai
     controls.minPolarAngle = 0.05;
     controls.minDistance = Math.max(60, initialCam.dist * 0.15);
-    controls.maxDistance = Math.max(3000, initialCam.dist * 2.5);
+    controls.maxDistance = Math.max(3500, initialCam.dist * 3.0);
     controls.target.set(0, 0, 0);
 
     // Lighting
@@ -638,17 +662,17 @@ export default function SharedMap3D({
       isDarkMode ? 0x090d16 : 0xe2e8f0,
       isDarkMode ? 0.45 : 0.5
     );
-    hemiLight.position.set(0, 600, 0);
+    hemiLight.position.set(0, 700, 0);
     scene.add(hemiLight);
 
-    const dirLight = new THREE.DirectionalLight(isDarkMode ? 0x60a5fa : 0xffffff, isDarkMode ? 0.9 : 1.1);
-    dirLight.position.set(300, 650, 450);
+    const dirLight = new THREE.DirectionalLight(isDarkMode ? 0x60a5fa : 0xffffff, isDarkMode ? 0.95 : 1.15);
+    dirLight.position.set(400, 950, 650);
     dirLight.castShadow = true;
     dirLight.shadow.mapSize.width = 2048;
     dirLight.shadow.mapSize.height = 2048;
     dirLight.shadow.camera.near = 50;
-    dirLight.shadow.camera.far = 2000;
-    const d = 800;
+    dirLight.shadow.camera.far = 4000;
+    const d = 1400;
     dirLight.shadow.camera.left = -d;
     dirLight.shadow.camera.right = d;
     dirLight.shadow.camera.top = d;
@@ -811,6 +835,23 @@ export default function SharedMap3D({
 
       controls.update();
 
+      // Dynamic badge scaling: skala badge label menyesuaikan jarak kamera agar nama toko tetap terbaca jelas saat zoom out
+      if (labelsGroupRef.current && camera) {
+        const camDist = camera.position.distanceTo(controls.target);
+        const badgeScale = Math.max(1, Math.min(camDist / 550, 2.5));
+        const labels = labelsGroupRef.current.children;
+        for (let i = 0; i < labels.length; i++) {
+          const sprite = labels[i];
+          if (sprite.userData && sprite.userData.baseScale) {
+            sprite.scale.set(
+              sprite.userData.baseScale.x * badgeScale,
+              sprite.userData.baseScale.y * badgeScale,
+              1
+            );
+          }
+        }
+      }
+
       // Animasi Floating Ground Ring di avatar
       if (avatarPartsRef.current.ring && avatarGroup.visible) {
         const pulse = Math.sin(time * 0.005) * 0.2 + 0.9;
@@ -971,7 +1012,7 @@ export default function SharedMap3D({
     if (!sceneRef.current) return;
     const bgCol = isDarkMode ? 0x090d16 : 0xf1f5f9;
     sceneRef.current.background = new THREE.Color(bgCol);
-    if (sceneRef.current.fog) sceneRef.current.fog.color = new THREE.Color(bgCol);
+    sceneRef.current.fog = null;
   }, [isDarkMode]);
 
   // Sync Animation Persistent Refs
@@ -1015,21 +1056,21 @@ export default function SharedMap3D({
     const slabH = height + 100;
 
     // Floor Slab Mesh
-    const slabGeo = new THREE.BoxGeometry(slabW, 8, slabH);
+    const slabGeo = new THREE.BoxGeometry(slabW, 10, slabH);
     const slabMat = new THREE.MeshStandardMaterial({
-      color: isDarkMode ? 0x0f172a : 0xffffff,
-      roughness: 0.6,
-      metalness: 0.1,
+      color: isDarkMode ? 0x0f172a : 0xf8fafc,
+      roughness: 0.5,
+      metalness: 0.08,
     });
     const slabMesh = new THREE.Mesh(slabGeo, slabMat);
-    slabMesh.position.set(0, -4.1, 0);
+    slabMesh.position.set(0, -5.1, 0);
     slabMesh.receiveShadow = true;
     groundGroup.add(slabMesh);
 
     // Border Frame di sekeliling lantai
     const borderEdges = new THREE.EdgesGeometry(slabGeo);
     const borderMat = new THREE.LineBasicMaterial({
-      color: isDarkMode ? 0x38bdf8 : 0x1a73c8,
+      color: isDarkMode ? 0x38bdf8 : 0x0284c7,
       linewidth: 2,
     });
     const borderLines = new THREE.LineSegments(borderEdges, borderMat);
@@ -1040,8 +1081,8 @@ export default function SharedMap3D({
     const gridHelper = new THREE.GridHelper(
       Math.max(slabW, slabH),
       Math.round(Math.max(slabW, slabH) / GRID_SIZE),
-      isDarkMode ? 0x334155 : 0xe2e8f0,
-      isDarkMode ? 0x1e293b : 0xf1f5f9
+      isDarkMode ? 0x334155 : 0xcbd5e1,
+      isDarkMode ? 0x1e293b : 0xe2e8f0
     );
     gridHelper.position.y = 0.05;
     groundGroup.add(gridHelper);
@@ -1069,25 +1110,31 @@ export default function SharedMap3D({
       const isStairs = item.name?.toLowerCase().includes("tangga") || item.name?.toLowerCase().includes("stairs");
       const isKiosk = item.isKiosk;
 
-      let color = isDarkMode ? 0x3b506f : 0xcbd5e1;
-      let emissive = isDarkMode ? 0x162234 : 0x000000;
-      let typeBadgeColor = isDarkMode ? "#94a3b8" : "#64748b";
+      // Color scheme yang tajam, elegan, dan kontras tinggi di semua tingkat zoom
+      let color = isDarkMode ? 0x24344d : 0xecf0f5;
+      let emissive = isDarkMode ? 0x0f172a : 0x000000;
+      let edgeColor = isDarkMode ? 0x64748b : 0x475569;
+      let typeBadgeColor = isDarkMode ? "#94a3b8" : "#475569";
 
       if (isKiosk) {
-        color = 0x3b82f6;
+        color = 0x2563eb;
         emissive = 0x1d4ed8;
-        typeBadgeColor = "#3b82f6";
+        edgeColor = 0x93c5fd;
+        typeBadgeColor = "#2563eb";
       } else if (isPintu) {
-        color = 0x22c55e;
-        emissive = 0x15803d;
-        typeBadgeColor = "#22c55e";
+        color = 0x10b981;
+        emissive = 0x059669;
+        edgeColor = 0x6ee7b7;
+        typeBadgeColor = "#10b981";
       } else if (isLift) {
-        color = 0xa855f7;
-        emissive = 0x7e22ce;
-        typeBadgeColor = "#a855f7";
+        color = 0x8b5cf6;
+        emissive = 0x6d28d9;
+        edgeColor = 0xc4b5fd;
+        typeBadgeColor = "#8b5cf6";
       } else if (isStairs) {
         color = 0xf97316;
         emissive = 0xc2410c;
+        edgeColor = 0xfdba74;
         typeBadgeColor = "#f97316";
       }
 
@@ -1118,12 +1165,12 @@ export default function SharedMap3D({
 
       const mat = new THREE.MeshStandardMaterial({
         color,
-        roughness: isKiosk || isLift || isStairs || isPintu ? 0.3 : 0.45,
+        roughness: isKiosk || isLift || isStairs || isPintu ? 0.3 : 0.4,
         metalness: 0.15,
         transparent: true,
-        opacity: isKiosk || isLift || isStairs || isPintu ? 0.95 : 0.94,
+        opacity: isKiosk || isLift || isStairs || isPintu ? 0.98 : 0.96,
         emissive: new THREE.Color(emissive),
-        emissiveIntensity: isDarkMode ? 0.45 : 0.1,
+        emissiveIntensity: isDarkMode ? 0.45 : 0.08,
       });
 
       const mesh = new THREE.Mesh(geo, mat);
@@ -1135,10 +1182,10 @@ export default function SharedMap3D({
       mesh.receiveShadow = true;
       mesh.userData = { room: item, originalColor: color, originalY: posY };
 
-      // Edges highlight
+      // Edges highlight tegas agar kontur dan denah ruangan terlihat jelas dari jauh
       const edges = new THREE.EdgesGeometry(geo);
       const edgeMat = new THREE.LineBasicMaterial({
-        color: isDarkMode ? 0x94a3b8 : 0x64748b,
+        color: edgeColor,
       });
       const edgeLine = new THREE.LineSegments(edges, edgeMat);
       mesh.add(edgeLine);
@@ -1150,7 +1197,7 @@ export default function SharedMap3D({
       if (!displayName) displayName = translateName(isKiosk ? "Kiosk" : "Tanpa Nama", language);
 
       const sprite = createRoomBadgeSprite(displayName, typeBadgeColor, isDarkMode);
-      sprite.position.set(posX, h + 10, posZ);
+      sprite.position.set(posX, h + 13, posZ);
       labelsGroup.add(sprite);
     });
   }, [currentFloorRooms, currentFloorKiosks, mapBounds, isDarkMode, language]);
@@ -1326,7 +1373,7 @@ export default function SharedMap3D({
     const ideal = getIdealCameraPos(mapBounds, viewAngle);
     cameraRef.current.position.set(ideal.x, ideal.y, ideal.z);
     controlsRef.current.target.set(0, 0, 0);
-    controlsRef.current.maxDistance = Math.max(3000, ideal.dist * 2.5);
+    controlsRef.current.maxDistance = Math.max(3500, ideal.dist * 3.0);
     controlsRef.current.minDistance = Math.max(60, ideal.dist * 0.15);
     controlsRef.current.update();
   }, [mapBounds, viewAngle, targetFloor, targetBuilding, getIdealCameraPos]);

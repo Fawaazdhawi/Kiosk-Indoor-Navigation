@@ -139,8 +139,8 @@ Untuk mengelola denah atau mengunci kiosk:
 2. Di jendela login, Anda dapat menggunakan tombol instan:
    > **`⚡ Masuk Langsung (1-Klik Mode Demo)`**
 3. Atau masukkan kredensial:
-   - **Email**: `admin@wayfinder.id`
-   - **Kata Sandi**: `admin123`
+   - **Email**: `adminavigator@admin.com`
+   - **Kata Sandi**: `navigasiindoor2026`
 4. Sesi login tersimpan otomatis di browser tanpa khawatir ter-logout saat me-refresh halaman.
 
 ---
