@@ -111,10 +111,3 @@ def init_db():
         logger.error(f"[POSTGRES] Gagal membuat tabel di PostgreSQL: {e}")
         return False
 
-# -------------------------------------------------------------
-# Optional Firebase Fallback (Backward Compatibility)
-# -------------------------------------------------------------
-db = None
-def listen_to_firestore(callback):
-    """Fallback opsional jika serviceAccountKey.json ada."""
-    pass

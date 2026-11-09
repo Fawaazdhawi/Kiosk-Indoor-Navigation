@@ -209,11 +209,104 @@ function createRoomBadgeSprite(text, typeColor, isDark) {
   return sprite;
 }
 
+// =========================================================================
+// MULTI-FLOOR TRANSITION ANIMATION HELPERS (ON-DEMAND SAAT NAVIGASI)
+// =========================================================================
+const FLOOR_ORDER = [
+  "ground floor",
+  "lantai 1",
+  "lantai 2",
+  "lantai 3",
+  "lantai 4",
+  "lantai 5"
+];
+const FLOOR_STACK_HEIGHT = 420; // Jarak vertikal lega agar lantai transisi tidak mengganggu lantai aktif
+const FLOOR_TRANSITION_DURATION = 2200; // Durasi animasi naik/turun lantai (ms)
+
+function getFloorIndex(floorName) {
+  if (!floorName) return 0;
+  const fLower = floorName.trim().toLowerCase();
+  const directIdx = FLOOR_ORDER.indexOf(fLower);
+  if (directIdx !== -1) return directIdx;
+  if (fLower.includes("ground") || fLower.includes("gf") || fLower.includes("dasar") || fLower.includes("ug") || fLower.includes("lg")) return 0;
+  const match = fLower.match(/\d+/);
+  if (match) return parseInt(match[0], 10);
+  return 0;
+}
+
+function createFloorDeckBadgeSprite(text, isDark, isActive = false) {
+  const canvas = document.createElement("canvas");
+  const ctx = canvas.getContext("2d");
+  const scale = 2;
+  const fontSize = 16 * scale;
+  ctx.font = `bold ${fontSize}px 'DM Sans', -apple-system, sans-serif`;
+
+  const textWidth = ctx.measureText(text).width;
+  const paddingH = 16 * scale;
+  const paddingV = 8 * scale;
+  const width = textWidth + paddingH * 2 + 18 * scale;
+  const height = fontSize + paddingV * 2;
+
+  canvas.width = width;
+  canvas.height = height;
+
+  ctx.font = `bold ${fontSize}px 'DM Sans', -apple-system, sans-serif`;
+  ctx.imageSmoothingEnabled = true;
+
+  const radius = 8 * scale;
+  ctx.beginPath();
+  ctx.moveTo(radius, 0);
+  ctx.lineTo(width - radius, 0);
+  ctx.quadraticCurveTo(width, 0, width, radius);
+  ctx.lineTo(width, height - radius);
+  ctx.quadraticCurveTo(width, height, width - radius, height);
+  ctx.lineTo(radius, height);
+  ctx.quadraticCurveTo(0, height, 0, height - radius);
+  ctx.lineTo(0, radius);
+  ctx.quadraticCurveTo(0, 0, radius, 0);
+  ctx.closePath();
+
+  ctx.fillStyle = isActive
+    ? (isDark ? "rgba(14, 165, 233, 0.95)" : "rgba(2, 132, 199, 0.95)")
+    : (isDark ? "rgba(30, 41, 59, 0.88)" : "rgba(241, 245, 249, 0.92)");
+  ctx.fill();
+
+  ctx.strokeStyle = isActive ? "#38bdf8" : (isDark ? "rgba(148, 163, 184, 0.45)" : "rgba(100, 116, 139, 0.35)");
+  ctx.lineWidth = 1.8 * scale;
+  ctx.stroke();
+
+  ctx.fillStyle = isActive ? "#ffffff" : (isDark ? "#38bdf8" : "#0284c7");
+  ctx.beginPath();
+  ctx.arc(paddingH / 1.5 + 4 * scale, height / 2, 4.5 * scale, 0, Math.PI * 2);
+  ctx.fill();
+
+  ctx.fillStyle = isActive ? "#ffffff" : (isDark ? "#f1f5f9" : "#0f172a");
+  ctx.textAlign = "left";
+  ctx.textBaseline = "middle";
+  ctx.fillText(text, paddingH / 1.5 + 15 * scale, height / 2 + 0.5 * scale);
+
+  const texture = new THREE.CanvasTexture(canvas);
+  texture.minFilter = THREE.LinearFilter;
+  const material = new THREE.SpriteMaterial({
+    map: texture,
+    transparent: true,
+    depthTest: false,
+    depthWrite: false,
+  });
+  const sprite = new THREE.Sprite(material);
+  const aspect = width / height;
+  const worldHeight = 15;
+  sprite.scale.set(worldHeight * aspect, worldHeight, 1);
+  sprite.userData = { baseScale: { x: worldHeight * aspect, y: worldHeight } };
+  return sprite;
+}
+
 
 export default function SharedMap3D({
   rooms: propRooms,
   kiosks: propKiosks,
   path = [],
+  allPathData = [],
   activePath = null,
   activeStepPath = null,
   nextStepPath = null,
@@ -297,7 +390,22 @@ export default function SharedMap3D({
   const roomsGroupRef = useRef(new THREE.Group());
   const labelsGroupRef = useRef(new THREE.Group());
   const pathsGroupRef = useRef(new THREE.Group());
+  const transitionGroupRef = useRef(new THREE.Group());
   const avatarGroupRef = useRef(new THREE.Group());
+
+  // Floor Transition Animation State Ref (Hanya aktif saat pindah lantai selama navigasi)
+  const prevFloorRef = useRef(currentFloor);
+  const prevBuildingRef = useRef(currentBuilding);
+  const floorTransitionRef = useRef({
+    active: false,
+    startTime: 0,
+    duration: FLOOR_TRANSITION_DURATION,
+    startOffsetY: 0,
+    curve: null,
+    rings: [],
+    fadeOutMaterials: [],
+    idealCam: null,
+  });
 
   // Interactive Hover & Raycast
   const raycasterRef = useRef(new THREE.Raycaster());
@@ -685,6 +793,7 @@ export default function SharedMap3D({
     scene.add(roomsGroupRef.current);
     scene.add(labelsGroupRef.current);
     scene.add(pathsGroupRef.current);
+    scene.add(transitionGroupRef.current);
     scene.add(avatarGroupRef.current);
 
     // Create 3D Avatar Model
@@ -871,7 +980,123 @@ export default function SharedMap3D({
         rightArmGroup: rag,
       } = avatarPartsRef.current;
 
-      if (phase === "waving") {
+      if (phase === "floor-transition" && floorTransitionRef.current.active) {
+        const ft = floorTransitionRef.current;
+        const elapsed = time - ft.startTime;
+        const progress = Math.min(Math.max(elapsed / ft.duration, 0), 1);
+        // Cubic Ease-In-Out
+        const ease = progress < 0.5
+          ? 4 * progress * progress * progress
+          : 1 - Math.pow(-2 * progress + 2, 3) / 2;
+
+        const toFloorY = (1 - ease) * ft.startOffsetY;
+        const fromFloorY = -ease * ft.startOffsetY;
+
+        groundGroupRef.current.position.y = toFloorY;
+        roomsGroupRef.current.position.y = toFloorY;
+        labelsGroupRef.current.position.y = toFloorY;
+        pathsGroupRef.current.position.y = toFloorY;
+        transitionGroupRef.current.position.y = fromFloorY;
+
+        // Fade out lantai lama
+        const fadeOutFactor = Math.max(0, 1 - Math.pow(progress, 1.35));
+        for (let i = 0; i < ft.fadeOutMaterials.length; i++) {
+          const item = ft.fadeOutMaterials[i];
+          item.mat.opacity = item.baseOpacity * fadeOutFactor;
+        }
+
+        // Fade in lantai tujuan
+        const fadeInFactor = 0.25 + 0.75 * ease;
+        const roomMeshes = roomsGroupRef.current.children;
+        for (let i = 0; i < roomMeshes.length; i++) {
+          const m = roomMeshes[i];
+          if (m.material && m.userData && m.userData.baseOpacity !== undefined) {
+            m.material.opacity = m.userData.baseOpacity * fadeInFactor;
+          }
+        }
+
+        // Animasi cincin energi pada kurva eskalator/lift 3D
+        if (ft.curve && ft.rings && ft.rings.length > 0) {
+          for (let i = 0; i < ft.rings.length; i++) {
+            const rMesh = ft.rings[i];
+            const rT = ((time * 0.00085) + i * (1 / ft.rings.length)) % 1;
+            const rPt = ft.curve.getPoint(rT);
+            const rTan = ft.curve.getTangent(rT);
+            rMesh.position.copy(rPt);
+            rMesh.lookAt(rPt.clone().add(rTan));
+          }
+        }
+
+        // Avatar meluncur naik/turun menyusuri kurva 3D eskalator/lift
+        if (ft.curve) {
+          const avPt = ft.curve.getPoint(ease);
+          const avTan = ft.curve.getTangent(ease);
+          avatarGroup.visible = true;
+          avatarGroup.position.set(avPt.x, avPt.y + fromFloorY - PATH_HEIGHT, avPt.z);
+
+          if (root) {
+            root.rotation.y = Math.atan2(avTan.x, avTan.z);
+          }
+          if (rag && lag) {
+            rag.rotation.x = -0.15;
+            rag.rotation.z = 0.25;
+            lag.rotation.x = -0.15;
+            lag.rotation.z = -0.25;
+          }
+          if (lf && rf) {
+            lf.position.z = 0;
+            rf.position.z = 0;
+          }
+
+          // Kamera zoom-out sinematik di tengah transisi agar kedua lantai & jalur vertikal terlihat utuh
+          if (ft.idealCam && camera && controls) {
+            const arc = Math.sin(progress * Math.PI);
+            const zoomMult = 1 + 0.42 * arc;
+            camera.position.set(
+              ft.idealCam.x * zoomMult,
+              ft.idealCam.y * zoomMult + toFloorY * 0.22 * arc,
+              ft.idealCam.z * zoomMult
+            );
+            controls.target.set(
+              avPt.x * 0.4 * arc,
+              (toFloorY + fromFloorY) * 0.25 * arc,
+              avPt.z * 0.4 * arc
+            );
+          }
+        }
+
+        // Ketika animasi transisi selesai -> sembunyikan lantai lama & lanjutkan jalan di lantai baru
+        if (progress >= 1) {
+          ft.active = false;
+          groundGroupRef.current.position.y = 0;
+          roomsGroupRef.current.position.y = 0;
+          labelsGroupRef.current.position.y = 0;
+          pathsGroupRef.current.position.y = 0;
+
+          for (let i = 0; i < roomMeshes.length; i++) {
+            const m = roomMeshes[i];
+            if (m.material && m.userData && m.userData.baseOpacity !== undefined) {
+              m.material.opacity = m.userData.baseOpacity;
+            }
+          }
+
+          transitionGroupRef.current.clear();
+          transitionGroupRef.current.visible = false;
+
+          if (ft.idealCam && camera && controls) {
+            camera.position.set(ft.idealCam.x, ft.idealCam.y, ft.idealCam.z);
+            controls.target.set(0, 0, 0);
+          }
+
+          if (activeStepPathPointsRef.current && activeStepPathPointsRef.current.length >= 4) {
+            walkedDistanceRef.current = 0;
+            animPhaseRef.current = "walking";
+            walkStartTimeRef.current = time;
+          } else {
+            animPhaseRef.current = "waving";
+          }
+        }
+      } else if (phase === "waving") {
         if (rag) {
           const wave = Math.sin(time * 0.008) * 0.35;
           rag.rotation.x = 0.2;
@@ -1176,12 +1401,13 @@ export default function SharedMap3D({
         geo = new THREE.BoxGeometry(w, h, d);
       }
 
+      const baseOpacity = isKiosk || isLift || isStairs || isEscalator || isPintu ? 0.98 : 0.96;
       const mat = new THREE.MeshStandardMaterial({
         color,
         roughness: isKiosk || isLift || isStairs || isEscalator || isPintu ? 0.3 : 0.4,
         metalness: 0.15,
         transparent: true,
-        opacity: isKiosk || isLift || isStairs || isEscalator || isPintu ? 0.98 : 0.96,
+        opacity: baseOpacity,
         emissive: new THREE.Color(emissive),
         emissiveIntensity: isDarkMode ? 0.45 : 0.08,
       });
@@ -1193,7 +1419,7 @@ export default function SharedMap3D({
       mesh.position.set(posX, posY, posZ);
       mesh.castShadow = true;
       mesh.receiveShadow = true;
-      mesh.userData = { room: item, originalColor: color, originalY: posY };
+      mesh.userData = { room: item, originalColor: color, originalY: posY, baseOpacity };
 
       // Edges highlight tegas agar kontur dan denah ruangan terlihat jelas dari jauh
       const edges = new THREE.EdgesGeometry(geo);
@@ -1281,10 +1507,279 @@ export default function SharedMap3D({
     }
   }, [fullPathPoints, activeStepPathPoints, mapBounds]);
 
+  // Animasi Naik/Turun Lantai On-Demand (Hanya menampilkan lantai lain saat transisi lantai ketika navigasi berjalan)
+  useEffect(() => {
+    const prevFloor = (prevFloorRef.current || "").trim();
+    const prevBuilding = (prevBuildingRef.current || "").trim();
+    prevFloorRef.current = targetFloor;
+    prevBuildingRef.current = targetBuilding;
+
+    const isNavigatingNow = hasActiveNavigation || (allPathData && allPathData.length > 0);
+    const isSameBuilding = !prevBuilding || !targetBuilding || prevBuilding.toLowerCase() === targetBuilding.toLowerCase();
+    const isFloorChanged = prevFloor && targetFloor && prevFloor.toLowerCase() !== targetFloor.toLowerCase();
+
+    // Jika navigasi tidak aktif, pastikan grup transisi bersih dan posisi semua grup di Y = 0
+    if (!isNavigatingNow || !isFloorChanged || !isSameBuilding) {
+      if (!isNavigatingNow && floorTransitionRef.current.active) {
+        floorTransitionRef.current.active = false;
+        transitionGroupRef.current.clear();
+        transitionGroupRef.current.visible = false;
+        groundGroupRef.current.position.y = 0;
+        roomsGroupRef.current.position.y = 0;
+        labelsGroupRef.current.position.y = 0;
+        pathsGroupRef.current.position.y = 0;
+      }
+      return;
+    }
+
+    // Bangun visual sementara untuk lantai asal (fromFloor) + jalur vertikal 3D dengan jarak lega (FLOOR_STACK_HEIGHT = 420)
+    const fromFloor = prevFloor;
+    const toFloor = targetFloor;
+    const fromIdx = getFloorIndex(fromFloor);
+    const toIdx = getFloorIndex(toFloor);
+    const isGoingUp = toIdx >= fromIdx;
+    const startOffsetY = (isGoingUp ? 1 : -1) * FLOOR_STACK_HEIGHT;
+
+    const transGroup = transitionGroupRef.current;
+    transGroup.clear();
+    transGroup.visible = true;
+    transGroup.position.y = 0;
+
+    const fadeOutMaterials = [];
+    const { width, height, centerX, centerZ } = mapBounds;
+    const slabW = width + 100;
+    const slabH = height + 100;
+
+    // 1. Slab lantai asal (fromFloor)
+    const slabGeo = new THREE.BoxGeometry(slabW, 10, slabH);
+    const fromSlabMat = new THREE.MeshStandardMaterial({
+      color: isDarkMode ? 0x1e293b : 0xe2e8f0,
+      roughness: 0.6,
+      metalness: 0.05,
+      transparent: true,
+      opacity: 0.24,
+      depthWrite: false,
+    });
+    fadeOutMaterials.push({ mat: fromSlabMat, baseOpacity: 0.24 });
+    const fromSlabMesh = new THREE.Mesh(slabGeo, fromSlabMat);
+    fromSlabMesh.position.set(0, -5.1, 0);
+    transGroup.add(fromSlabMesh);
+
+    const borderEdges = new THREE.EdgesGeometry(slabGeo);
+    const fromBorderMat = new THREE.LineBasicMaterial({
+      color: isDarkMode ? 0x475569 : 0x94a3b8,
+      transparent: true,
+      opacity: 0.45,
+    });
+    fadeOutMaterials.push({ mat: fromBorderMat, baseOpacity: 0.45 });
+    const fromBorderLines = new THREE.LineSegments(borderEdges, fromBorderMat);
+    fromBorderLines.position.copy(fromSlabMesh.position);
+    transGroup.add(fromBorderLines);
+
+    // Badge nama lantai asal & tujuan selama transisi berlangsung
+    const fromCornerBadge = createFloorDeckBadgeSprite(fromFloor, isDarkMode, false);
+    fromCornerBadge.position.set(-slabW / 2 + 75, 14, slabH / 2 - 30);
+    fadeOutMaterials.push({ mat: fromCornerBadge.material, baseOpacity: 0.9 });
+    transGroup.add(fromCornerBadge);
+
+    const toCornerBadge = createFloorDeckBadgeSprite(toFloor, isDarkMode, true);
+    toCornerBadge.position.set(-slabW / 2 + 75, startOffsetY + 14, slabH / 2 - 30);
+    fadeOutMaterials.push({ mat: toCornerBadge.material, baseOpacity: 1.0 });
+    transGroup.add(toCornerBadge);
+
+    // 2. Ruangan-ruangan pada lantai asal (ghosted semi-transparan agar tidak mengganggu)
+    const fromRooms = effectiveRooms.filter((r) => {
+      const mFloor = (r.floor || "").trim().toLowerCase() === fromFloor.toLowerCase();
+      const mBld = !targetBuilding || (r.building || "").trim().toLowerCase() === targetBuilding.toLowerCase();
+      return mFloor && mBld;
+    });
+    const fromKiosks = effectiveKiosks.filter((k) => {
+      const mFloor = (k.floor || "").trim().toLowerCase() === fromFloor.toLowerCase();
+      const mBld = !targetBuilding || (k.building || "").trim().toLowerCase() === targetBuilding.toLowerCase();
+      return mFloor && mBld;
+    });
+
+    [...fromRooms.map(r => ({ ...r, isKiosk: false })), ...fromKiosks.map(k => ({ ...k, isKiosk: true }))].forEach((item) => {
+      const nameLower = (item.name || "").toLowerCase();
+      const isWall = item.facility_type === "wall";
+      const isLift = !isWall && nameLower.includes("lift");
+      const isEscalator = !isWall && (nameLower.includes("eskalator") || nameLower.includes("escalator"));
+      const isStairs = !isWall && (nameLower.includes("tangga") || nameLower.includes("stairs")) && !isEscalator;
+      const isHighlight = isLift || isEscalator || isStairs;
+
+      const w = Math.max(item.width - 2, 4);
+      const d = Math.max(item.height - 2, 4);
+      const h = isWall ? WALL_HEIGHT * 0.45 : item.isKiosk ? WALL_HEIGHT * 0.75 : WALL_HEIGHT;
+
+      let geo;
+      const isPolygon = item.points && item.points.length >= 6;
+      if (isPolygon) {
+        const shape = new THREE.Shape();
+        const pts = item.points;
+        const offsetX = item.width / 2;
+        const offsetZ = item.height / 2;
+        shape.moveTo(pts[0] - offsetX, -(pts[1] - offsetZ));
+        for (let i = 2; i < pts.length; i += 2) {
+          shape.lineTo(pts[i] - offsetX, -(pts[i + 1] - offsetZ));
+        }
+        shape.closePath();
+        geo = new THREE.ExtrudeGeometry(shape, { depth: h, bevelEnabled: false });
+        geo.rotateX(-Math.PI / 2);
+      } else {
+        geo = new THREE.BoxGeometry(w, h, d);
+      }
+
+      const roomBaseOp = isHighlight ? 0.65 : 0.32;
+      const rMat = new THREE.MeshStandardMaterial({
+        color: isEscalator ? 0x06b6d4 : isLift ? 0x8b5cf6 : isStairs ? 0xf97316 : (isDarkMode ? 0x24344d : 0x94a3b8),
+        roughness: 0.5,
+        metalness: 0.1,
+        transparent: true,
+        opacity: roomBaseOp,
+        depthWrite: false,
+      });
+      fadeOutMaterials.push({ mat: rMat, baseOpacity: roomBaseOp });
+
+      const rMesh = new THREE.Mesh(geo, rMat);
+      const posX = item.x + item.width / 2 - centerX;
+      const posZ = item.y + item.height / 2 - centerZ;
+      const posY = isPolygon ? 0 : h / 2;
+      rMesh.position.set(posX, posY, posZ);
+
+      const rEdges = new THREE.EdgesGeometry(geo);
+      const rEdgeMat = new THREE.LineBasicMaterial({
+        color: isHighlight ? 0x38bdf8 : (isDarkMode ? 0x475569 : 0x64748b),
+        transparent: true,
+        opacity: 0.4,
+      });
+      fadeOutMaterials.push({ mat: rEdgeMat, baseOpacity: 0.4 });
+      rMesh.add(new THREE.LineSegments(rEdges, rEdgeMat));
+      transGroup.add(rMesh);
+    });
+
+    // 3. Cari titik konektor vertikal (eskalator / lift / tangga) antara fromFloor dan toFloor
+    let transP1 = null;
+    let transP2 = null;
+    if (allPathData && allPathData.length >= 2) {
+      for (let i = 0; i < allPathData.length - 1; i++) {
+        const a = allPathData[i];
+        const b = allPathData[i + 1];
+        if (
+          (a.floor || "").trim().toLowerCase() === fromFloor.toLowerCase() &&
+          (b.floor || "").trim().toLowerCase() === toFloor.toLowerCase()
+        ) {
+          transP1 = a;
+          transP2 = b;
+          break;
+        }
+      }
+      if (!transP1) {
+        const fPts = allPathData.filter(p => (p.floor || "").trim().toLowerCase() === fromFloor.toLowerCase());
+        const tPts = allPathData.filter(p => (p.floor || "").trim().toLowerCase() === toFloor.toLowerCase());
+        if (fPts.length > 0 && tPts.length > 0) {
+          transP1 = fPts[fPts.length - 1];
+          transP2 = tPts[0];
+        }
+      }
+    }
+
+    const p1X = transP1 ? ((transP1.x || 0) * GRID_SIZE + GRID_SIZE / 2) - centerX : 0;
+    const p1Z = transP1 ? ((transP1.y || 0) * GRID_SIZE + GRID_SIZE / 2) - centerZ : 0;
+    const p2X = transP2 ? ((transP2.x || 0) * GRID_SIZE + GRID_SIZE / 2) - centerX : p1X;
+    const p2Z = transP2 ? ((transP2.y || 0) * GRID_SIZE + GRID_SIZE / 2) - centerZ : p1Z;
+
+    // Buat kurva 3D eskalator / lift dengan sedikit lengkungan diagonal agar tampak dinamis dari sudut isometrik
+    const v1 = new THREE.Vector3(p1X, PATH_HEIGHT, p1Z);
+    const v4 = new THREE.Vector3(p2X, startOffsetY + PATH_HEIGHT, p2Z);
+    const dx = p2X - p1X;
+    const dz = p2Z - p1Z;
+    const horizDist = Math.sqrt(dx * dx + dz * dz);
+    const curveSideOffset = horizDist < 20 ? 32 : 12;
+
+    const v2 = new THREE.Vector3(
+      p1X + dx * 0.25 + curveSideOffset,
+      PATH_HEIGHT + startOffsetY * 0.33,
+      p1Z + dz * 0.25 - curveSideOffset * 0.5
+    );
+    const v3 = new THREE.Vector3(
+      p1X + dx * 0.75 - curveSideOffset * 0.5,
+      PATH_HEIGHT + startOffsetY * 0.67,
+      p1Z + dz * 0.75 + curveSideOffset * 0.5
+    );
+
+    const verticalCurve = new THREE.CubicBezierCurve3(v1, v2, v3, v4);
+    const vertTubeGeo = new THREE.TubeGeometry(verticalCurve, 44, 4.2, 12, false);
+    const vertTubeMat = new THREE.MeshStandardMaterial({
+      color: 0x06b6d4,
+      emissive: 0x00e5ff,
+      emissiveIntensity: 0.95,
+      roughness: 0.2,
+      transparent: true,
+      opacity: 0.92,
+    });
+    fadeOutMaterials.push({ mat: vertTubeMat, baseOpacity: 0.92 });
+    const vertTubeMesh = new THREE.Mesh(vertTubeGeo, vertTubeMat);
+    transGroup.add(vertTubeMesh);
+
+    // Cincin energi bergerak sepanjang jalur vertikal 3D
+    const rings = [];
+    const ringGeo = new THREE.TorusGeometry(6.8, 1.2, 10, 24);
+    for (let i = 0; i < 4; i++) {
+      const rMat = new THREE.MeshBasicMaterial({
+        color: 0x67e8f9,
+        transparent: true,
+        opacity: 0.9,
+      });
+      fadeOutMaterials.push({ mat: rMat, baseOpacity: 0.9 });
+      const rMesh = new THREE.Mesh(ringGeo, rMat);
+      transGroup.add(rMesh);
+      rings.push(rMesh);
+    }
+
+    // Floating Badge di tengah lintasan vertikal
+    const badgeText = isGoingUp
+      ? (language === "id" ? `▲ Naik ke ${toFloor}` : `▲ Up to ${toFloor}`)
+      : (language === "id" ? `▼ Turun ke ${toFloor}` : `▼ Down to ${toFloor}`);
+    const vertBadge = createRoomBadgeSprite(badgeText, "#06b6d4", isDarkMode);
+    vertBadge.position.set((p1X + p2X) / 2 + curveSideOffset * 0.4, startOffsetY * 0.5 + 16, (p1Z + p2Z) / 2);
+    fadeOutMaterials.push({ mat: vertBadge.material, baseOpacity: 1.0 });
+    transGroup.add(vertBadge);
+
+    // Posisikan lantai tujuan di startOffsetY pada awal transisi (akan meluncur halus ke Y = 0)
+    groundGroupRef.current.position.y = startOffsetY;
+    roomsGroupRef.current.position.y = startOffsetY;
+    labelsGroupRef.current.position.y = startOffsetY;
+    pathsGroupRef.current.position.y = startOffsetY;
+
+    floorTransitionRef.current = {
+      active: true,
+      startTime: performance.now(),
+      duration: FLOOR_TRANSITION_DURATION,
+      startOffsetY,
+      curve: verticalCurve,
+      rings,
+      fadeOutMaterials,
+      idealCam: getIdealCameraPos(mapBounds, viewAngle),
+    };
+
+    animPhaseRef.current = "floor-transition";
+    if (avatarGroupRef.current) {
+      avatarGroupRef.current.visible = true;
+      avatarGroupRef.current.position.set(p1X, 0, p1Z);
+    }
+  }, [targetFloor, targetBuilding, hasActiveNavigation, allPathData, effectiveRooms, effectiveKiosks, mapBounds, isDarkMode, language, viewAngle, getIdealCameraPos]);
+
   // Set Posisi Avatar Saat Kiosk Dipilih / Navigasi Berjalan
   useEffect(() => {
     const avatarGroup = avatarGroupRef.current;
     if (!avatarGroup) return;
+
+    // Jika sedang dalam animasi transisi naik/turun lantai, biarkan loop transisi yang mengendalikan posisi avatar
+    if (floorTransitionRef.current.active) {
+      avatarGroup.visible = true;
+      walkedDistanceRef.current = 0;
+      return;
+    }
 
     if (!selectedKioskData && activeStepPathPoints.length < 4) {
       avatarGroup.visible = false;

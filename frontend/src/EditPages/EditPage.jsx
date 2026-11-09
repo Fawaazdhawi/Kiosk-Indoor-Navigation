@@ -580,7 +580,10 @@ export default function EditPage() {
             }
             if (initialFloors.length === 0) initialFloors = ["Ground Floor"];
             setFloors(initialFloors);
-            const defaultFloor = initialFloors.find(f => f.toLowerCase() === "ground floor" || f.toLowerCase() === "lantai 1") || initialFloors[0] || "Ground Floor";
+            const floorsWithElements = initialFloors.filter(fl =>
+              allElements.some(el => el.floor === fl && (el.building || initialBuilding) === initialBuilding)
+            );
+            const defaultFloor = floorsWithElements[0] || initialFloors.find(f => f.toLowerCase() === "ground floor" || f.toLowerCase() === "lantai 1") || initialFloors[0] || "Ground Floor";
             setActiveEditFloor(defaultFloor);
             return;
           }
@@ -701,7 +704,10 @@ export default function EditPage() {
         });
 
         setFloors(initialFloors);
-        const defaultFloor = initialFloors.find(f => f.toLowerCase() === "lantai 1" || f.toLowerCase() === "first floor") || initialFloors[0] || "Lantai 1";
+        const floorsWithElements = initialFloors.filter(fl =>
+          allElements.some(el => el.floor === fl && (el.building || initialBuilding) === initialBuilding)
+        );
+        const defaultFloor = floorsWithElements[0] || initialFloors.find(f => f.toLowerCase() === "lantai 1" || f.toLowerCase() === "first floor") || initialFloors[0] || "Lantai 1";
         setActiveEditFloor(defaultFloor);
       } catch (error) {
         console.error("Gagal mengambil data:", error);
@@ -736,7 +742,10 @@ export default function EditPage() {
     });
 
     setFloors(newFloors);
-    const targetFloor = newFloors.find(f => f.toLowerCase() === "lantai 1" || f.toLowerCase() === "first floor") || newFloors[0];
+    const floorsWithElements = newFloors.filter(fl =>
+      currentElements.some(el => el.floor === fl && (el.building || newBuilding) === newBuilding)
+    );
+    const targetFloor = floorsWithElements[0] || newFloors.find(f => f.toLowerCase() === "lantai 1" || f.toLowerCase() === "first floor") || newFloors[0];
     setActiveEditFloor(targetFloor);
   };
 
@@ -1228,11 +1237,11 @@ export default function EditPage() {
       message: getText('confirm_delete_floor_2'),
       onConfirm: () => {
         setCustomConfirm(prev => ({ ...prev, isOpen: false }));
-        const elementsToDelete = placedElements.filter(el => el.floor === activeEditFloor);
+        const elementsToDelete = placedElements.filter(el => el.floor === activeEditFloor && el.building === activeEditBuilding);
         const idsToDelete = elementsToDelete.map(el => el.id);
         setDeletedElements(prev => [...prev, ...idsToDelete]);
 
-        const newElements = placedElements.filter(el => el.floor !== activeEditFloor);
+        const newElements = placedElements.filter(el => !(el.floor === activeEditFloor && el.building === activeEditBuilding));
         setPlacedElements(newElements);
         saveHistory(newElements);
 
@@ -1266,7 +1275,7 @@ export default function EditPage() {
           }
 
           const newElements = placedElements.map(el => {
-            if (el.floor === activeEditFloor) {
+            if (el.floor === activeEditFloor && el.building === activeEditBuilding) {
               return { ...el, floor: formattedFloor };
             }
             return el;
@@ -1767,7 +1776,36 @@ export default function EditPage() {
       )}
 
       <div className="edit-page-layout">
-        <main className="edit-page-map" ref={mapRef} onDrop={handleDrop} onDragOver={(e) => e.preventDefault()}>
+        <main className="edit-page-map" ref={mapRef} onDrop={handleDrop} onDragOver={(e) => e.preventDefault()} style={{ position: "relative" }}>
+          {activeFloorElements.length === 0 && (
+            <div style={{
+              position: "absolute",
+              top: "20px",
+              left: "50%",
+              transform: "translateX(-50%)",
+              background: isDarkMode ? "rgba(30, 41, 59, 0.95)" : "rgba(255, 255, 255, 0.95)",
+              backdropFilter: "blur(8px)",
+              color: isDarkMode ? "#e2e8f0" : "#334155",
+              padding: "10px 20px",
+              borderRadius: "10px",
+              boxShadow: "0 6px 20px rgba(0,0,0,0.15)",
+              border: isDarkMode ? "1px solid rgba(255,255,255,0.1)" : "1px solid rgba(0,0,0,0.08)",
+              pointerEvents: "none",
+              zIndex: 100,
+              display: "flex",
+              alignItems: "center",
+              gap: "8px",
+              fontSize: "13px",
+              fontWeight: 500
+            }}>
+              <span>ℹ️</span>
+              <span>
+                {language === 'id'
+                  ? `Lantai "${activeEditFloor}" belum memiliki elemen denah. Silakan ganti lantai (contoh: Lantai 2) atau tarik template dari panel kanan untuk mulai membuat denah.`
+                  : `Floor "${activeEditFloor}" has no map elements yet. Please switch floor (e.g. Lantai 2) or drag templates from the right panel.`}
+              </span>
+            </div>
+          )}
           <TransformWrapper ref={transformRef} panning={{ disabled: isDraggingElement || isShiftPressed || selectionRect.visible }} initialScale={1} minScale={0.05} maxScale={10} limitToBounds={false} wheel={{ step: 0.005, smoothStep: 0.002 }}>
             <TransformComponent wrapperStyle={{ width: "100%", height: "100%", cursor: isDraggingElement ? "grabbing" : "grab" }}>
               <div className="map-content" style={{ width: calculatedMapSize.width, height: calculatedMapSize.height, background: isDarkMode ? "#0f172a" : "#e0e0e0" }}>

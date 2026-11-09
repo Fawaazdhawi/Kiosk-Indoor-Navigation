@@ -8,12 +8,7 @@ try:
 except (ImportError, AttributeError):
     genai = None
 
-try:
-    from firebase_admin import firestore
-except ImportError:
-    firestore = None
 
-from app.core.database import db
 
 GEMINI_API_KEY = os.getenv("GEMINI_API_KEY")
 gemini_client = None
@@ -696,12 +691,7 @@ def cari_target_ruangan(input_pengunjung, start_node_id=None, language="id", cur
                 gemini_answer = response.text.strip()
                 
                 if gemini_answer != "NOT_FOUND" and gemini_answer in DATABASE_RUANGAN:
-                    print(f"[NLP] Gemini berhasil mencocokkan! Memasukkan '{input_pengunjung}' ke keywords ruangan {gemini_answer}")
-                    try:
-                        db.collection('Rooms').document(gemini_answer).update({"keywords": firestore.ArrayUnion([input_pengunjung])})
-                    except Exception as e:
-                        print(f"[NLP] Gagal mengupdate keywords di Firestore: {e}")
-                        
+                    print(f"[NLP] Gemini berhasil mencocokkan! Tujuan: {gemini_answer}")
                     return {
                         "status": "success",
                         "target_id": gemini_answer,

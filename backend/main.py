@@ -15,7 +15,7 @@ try:
 except (ImportError, AttributeError):
     genai = None
 
-from app.core.database import db, listen_to_firestore, SessionLocal, init_db
+from app.core.database import SessionLocal, init_db
 from app.core import state as waypoint_graph
 from app.services.nlp_service import cari_target_ruangan, latih_ulang_nlp
 from app.services.a_star_service import cari_rute_grid, get_room_display_name
@@ -326,9 +326,6 @@ def sinkronisasi_peta(data):
 # Jalankan pemuatan data dari PostgreSQL di thread terpisah saat startup
 threading.Thread(target=muat_data_dari_postgres, daemon=True).start()
 
-# Fallback listener firestore jika masih ada
-threading.Thread(target=listen_to_firestore, args=(sinkronisasi_peta,), daemon=True).start()
-
 app = FastAPI(title="Indoor Navigator Mall API (PostgreSQL + Ollama Qwen)")
 
 app.add_middleware(
@@ -495,8 +492,8 @@ Names to process:
 @app.get("/")
 def home():
     return {
-        "message": "Server Smart Hospital Backend Aktif!",
-        "status": "Bridge Active & Listening to Firestore"
+        "message": "Indoor Navigator Mall Backend Aktif!",
+        "status": "Ready (PostgreSQL + Local AI)"
     }
 
 @app.get("/api/ip")

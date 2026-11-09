@@ -808,7 +808,19 @@ export default function App() {
               setIsQrModalOpen(false);
             }, 10000);
           } else {
-            playNext(index + 1);
+            const nextStep = langkahNavigasi[index + 1];
+            const isFloorChange = nextStep && nextStep.floor && step.floor &&
+              nextStep.floor.trim().toLowerCase() !== step.floor.trim().toLowerCase();
+            if (isFloorChange) {
+              if (nextStep.floor) setFloor(nextStep.floor);
+              if (nextStep.building) setBuilding(nextStep.building);
+              resetTimeoutRef.current = setTimeout(() => {
+                if (!isMountedRef.current) return;
+                playNext(index + 1);
+              }, 2350);
+            } else {
+              playNext(index + 1);
+            }
           }
         };
 
@@ -1770,6 +1782,7 @@ export default function App() {
                 rooms={rooms}
                 kiosks={kiosks}
                 path={filteredPathData}
+                allPathData={pathData}
                 activePath={activePath}
                 activeStepPath={activeStepPath}
                 nextStepPath={nextStepPath}
